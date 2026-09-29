@@ -5,7 +5,7 @@
  * ここで機械的に潰しておくと、あとから「なぜか画面に出ない」を探さずに済む。
  * 新しい不整合の型を見つけたら、直すついでにこのファイルへ検査を足すこと。
  */
-import { CATEGORIES, FIELDS } from '../src/data/categories';
+import { CATEGORIES, ELECTIVES_TO_ANSWER, FIELDS } from '../src/data/categories';
 import { SECTIONS } from '../src/data/textbook';
 import { QUESTIONS } from '../src/data/questions';
 import { PASSAGES } from '../src/data/questions/passages';
@@ -161,6 +161,25 @@ for (const f of FIELDS) {
   }
 }
 
+// ---- 章の配点の合計が、課目の満点と合っているか ----
+// 章の points は大問の配点（令和 6〜8 年度の標準解答）。**選択の章（elective）は、選ぶ数だけ数える。**
+// 課目Ⅳは必須 4 章（50 × 4）＋ 選択 4 章から 2 つ（40 × 2）＝ 280。選択を全部足すと 360 になって合わない。
+// 選択の章どうしで配点が違うと「選ぶ数 × 配点」が一意に決まらないので、それもエラーにする。
+for (const f of FIELDS) {
+  const cats = CATEGORIES.filter((c) => c.field === f.id);
+  const required = cats.filter((c) => !c.elective).reduce((n, c) => n + c.points, 0);
+  const electives = cats.filter((c) => c.elective);
+  const electivePoints = new Set(electives.map((c) => c.points));
+  if (electivePoints.size > 1) {
+    err(`課目「${f.name}」: 選択の章の配点がそろっていない（${[...electivePoints].join('・')}）`);
+    continue;
+  }
+  const chosen = electives.length === 0 ? 0 : Math.min(ELECTIVES_TO_ANSWER, electives.length) * electives[0].points;
+  if (required + chosen !== f.points) {
+    err(`課目「${f.name}」: 章の配点の合計が ${required + chosen}（必須 ${required} ＋ 選択 ${chosen}）。満点は ${f.points}`);
+  }
+}
+
 // ---- 記号とキー操作が、選択肢の上限に届いているか ----
 // 記号（ア〜ト）が上限より少ないと、あふれたの選択肢に記号が付かない。
 if (CHOICE_LABELS.length !== MAX_CHOICES) {
@@ -299,15 +318,9 @@ for (const q of QUESTIONS) {
         // 同じ公式を、理論の節と演習の節で**数値だけ変えて**出すのは意図した
         // 繰返しなので重複ではない（稼働率・損益分岐点・伝送時間など）。
         // 文面が似ていても、出てくる数が違えば別の問題として扱う。
-        // ★ 学識（化学）と学識（機械）は**別の試験**で、受験者はどちらか一方しか解かない。
-        // だから gk- と gm- のあいだで同じ論点が出ても、重複ではない。むしろ両方に要る。
-        // 重複が問題になるのは、**同じ受験者が両方を解く組合せ**だけ
-        // （法令と保安管理技術は両区分共通なので、それらと学識の重なりは重複として扱う）。
-        const field = (id: string): string => id.split('-')[0];
-        const crossDivision =
-          (field(rows[i].q.categoryId) === 'gk' && field(rows[j].q.categoryId) === 'gm') ||
-          (field(rows[i].q.categoryId) === 'gm' && field(rows[j].q.categoryId) === 'gk');
-        if (sim >= 0.6 && !sameSection && !crossDivision && rows[i].nums === rows[j].nums) {
+        // （高圧ガス甲種版にあった「学識の区分（gk-／gm-）どうしは重複にしない」例外は外した。
+        //   熱分野の 4 課目は同じ受験者が全部解くので、課目をまたいだ重なりも重複として扱う。）
+        if (sim >= 0.6 && !sameSection && rows[i].nums === rows[j].nums) {
           warn(
             `問題 ${rows[i].q.id} と ${rows[j].q.id} が別の節でほぼ同じ内容（類似度 ${sim.toFixed(2)}）。` +
               '片方の数値か観点を変える',
@@ -1012,12 +1025,8 @@ const plannedTitles = new Map<string, string>();
 
 const titleToId = new Map(SECTIONS.map((s) => [s.title, s.id]));
 
-// ★ 学識だけは、甲種化学（`gk-`）と甲種機械（`gm-`）で中身が完全に別で、
-//   **読者はどちらか一方しか読みません。**相互にリンクすると、
-//   受けない区分の節へ飛ばすことになります（CLAUDE.md の検証観点 4／00-common.md §6）。
-//   節の id の接頭辞だけで機械的に分かるので、検査にしてあります。
-const gakushikiSide = (id: string): 'gk' | 'gm' | null =>
-  /^gk-\d+$/.test(id) ? 'gk' : /^gm-\d+$/.test(id) ? 'gm' : null;
+// （高圧ガス甲種版にあった「学識の区分（`gk-`／`gm-`）をまたぐリンク」の検査は外した。
+//   熱分野の 4 課目は同じ受験者が全部読むので、課目をまたぐリンクはむしろ要る。docs/section-plan.md §3）
 const linkRe = /\[([^\]]+)\]\(([^)\s]+)\)/g;
 for (const s of SECTIONS) {
   let m: RegExpExecArray | null;
@@ -1031,15 +1040,6 @@ for (const s of SECTIONS) {
       continue;
     }
     if (page !== 'textbook' || param === undefined) continue;
-    const fromSide = gakushikiSide(s.id);
-    const toSide = gakushikiSide(param);
-    if (fromSide !== null && toSide !== null && fromSide !== toSide) {
-      err(
-        `教本 ${s.id}: 学識の区分をまたぐリンク ${to}` +
-          '（gk- は甲種化学、gm- は甲種機械。読者はどちらか一方しか読まない）',
-      );
-      continue;
-    }
     if (!sectionIds.has(param)) {
       if (plannedIds.has(param)) {
         const planned = plannedTitles.get(param) ?? '';
@@ -1252,7 +1252,12 @@ for (const s2 of SECTIONS) {
       ledger = ledger.slice(0, from) + ledger.slice(to);
     }
   }
-  /** 表記ゆれを 1 つに寄せる */
+  /**
+   * 表記ゆれを 1 つに寄せる。
+   *
+   * **★ 高圧ガス甲種版の単位のままです。**省エネ法の数値は kL・GJ・kWh・千 kWh・年・月で書かれるので、
+   * **台帳（`docs/primary-numbers.md`）を作るとき（CLAUDE.md の手順 5）に、この表と `UNIT_RE` を書き換えること。**
+   */
   const UNITS: [RegExp, string][] = [
     [/^(?:メガパスカル|MPa)$/, 'MPa'],
     [/^(?:キロパスカル|kPa)$/, 'kPa'],
@@ -1281,13 +1286,14 @@ for (const s2 of SECTIONS) {
   };
   const known = new Set(pairs(ledger).keys());
   // **見逃してよいもの。**理由を必ず書くこと。
-  const allowed = new Set([
-    '1 kg', // law-handle-1 の誤答。正しくは 10 キログラム（法 16 ③）
-    '9 pct', // 「9 % ニッケル鋼」は材料の呼び名。測った値ではない
-    '30 m3', // lw-43 の架空の事業所「琵琶湖東ガス充塡所」の設定値
-  ]);
+  // （高圧ガス甲種版の 3 件は、この試験に無い問題のものなので外した。）
+  const allowed = new Set<string>([]);
+  // **台帳が受け持つのは、法（`k1-law`）と、年版の資料の数値を問う情勢（`k1-policy`）。**
+  // 工学の数値（課目Ⅰ問題 3 と課目Ⅱ〜Ⅳ）は台帳の担当ではない。
+  // ★ 高圧ガス甲種版の判定（`/^(law|ho)-/`）のままだと、この試験の章 ID にどれも当たらず、検査が黙って効いていなかった。
+  const LEDGER_CATEGORIES = new Set(['k1-law', 'k1-policy']);
   for (const q of QUESTIONS) {
-    if (!/^(law|ho)-/.test(q.categoryId)) continue;
+    if (!LEDGER_CATEGORIES.has(q.categoryId)) continue;
     for (const [key, shown] of pairs(q.question)) {
       if (known.has(key) || allowed.has(key)) continue;
       warn(
@@ -1298,9 +1304,9 @@ for (const s2 of SECTIONS) {
   }
   // **教本の側も見る。**確認問題だけ直して本文が古いまま、というのが
   // 2 巡目でいちばん多く出た型なので、両方を同じ物差しで測る。
-  // 学識（`gk-` / `gm-`）は工学の数値なので、台帳の担当ではない（§16）。
+  // 節は章で判定する（`ea-` は情勢の章と管理技術の章で接頭辞を共有するので、節 ID では分けられない）。
   for (const sec of SECTIONS) {
-    if (!/^(lw|ho)-/.test(sec.id)) continue;
+    if (!LEDGER_CATEGORIES.has(sec.categoryId)) continue;
     for (const [key, shown] of pairs(sec.body)) {
       if (known.has(key) || allowed.has(key)) continue;
       warn(

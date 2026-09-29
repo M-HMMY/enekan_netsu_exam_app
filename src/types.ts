@@ -31,8 +31,15 @@ export interface Category {
   summary: string;
   /** この章が公式シラバスのどの項目に当たるか（例: 技術分野 7〜10）。章の扉に出す */
   syllabus: string;
-  /** 本番の大問の数。受験案内の「試験課目」欄の括弧内の数（categories.ts の注記を参照） */
+  /**
+   * 本番の大問の数。章は大問と 1 対 1 なので、入門編を除いて 1（docs/section-plan.md §1）。
+   * 課目ごとの合計が受験案内の「試験課目」欄の数と合うことを `check.ts` が見る
+   */
   questions: number;
+  /** その大問の配点（令和 6〜8 年度の標準解答。3 年とも同じ）。入門編は 0 */
+  points: number;
+  /** 課目Ⅳの＊選択の章（4 問題から 2 問題を選ぶ）なら true */
+  elective?: boolean;
   /**
    * 章の扉に出す導入文（Markdown）。この章で何をやり、なぜ必要で、
    * どれくらい力を入れるべきかを、節を読む前に伝える。
