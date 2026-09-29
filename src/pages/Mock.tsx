@@ -223,12 +223,12 @@ export function Mock(): JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [remaining, session]);
 
-  // 1〜5 で選択、← → で前後の問題へ
+  // 数字キーで選択（その問題の選択肢の数まで）、← → で前後の問題へ
   useKeys(
     useCallback(
       (key: string) => {
         if (session === null || session.finishedAt !== null) return;
-        const choice = choiceIndexOf(key);
+        const choice = choiceIndexOf(key, session.items[session.idx].q.choices.length);
         if (choice !== null) {
           setSession((s) => {
             if (s === null) return s;
@@ -540,7 +540,7 @@ export function Mock(): JSX.Element {
         </button>
       </div>
       <p className="kbd-hint">
-        <kbd>1</kbd>〜<kbd>5</kbd> で選択、<kbd>←</kbd> <kbd>→</kbd> で問題を移動できます
+        <kbd>1</kbd>〜<kbd>{item.q.choices.length}</kbd> で選択、<kbd>←</kbd> <kbd>→</kbd> で問題を移動できます
       </p>
 
       <section className="section">

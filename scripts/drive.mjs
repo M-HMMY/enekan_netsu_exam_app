@@ -148,17 +148,16 @@ function click(text, tag = 'button') {
 }
 
 /**
- * 選択肢（ア〜オ）の n 番目を押す。確認問題と模試で使う。
+ * 選択肢の n 番目を押す。確認問題と模試で使う。
  *
- * **この試験は五肢択一なので「オ」まである。**姉妹アプリは四肢択一で、
- * ここが「ア〜エ」のままだった。5 つめを押せないことに黙って気づけない形なので、
- * 下の筋書きで**選択肢が 5 つあることを数えて確かめている。**
+ * **選択肢は記号（ア、イ…）ではなく `.choice` のクラスで拾う。**
+ * 姉妹アプリは「ア〜エで始まるボタン」を正規表現で拾っていて、5 つめを押せないことに黙って気づけなかった。
+ * この試験は空欄ごとに 3〜8 個（ア〜ク）と数が違うので、記号の範囲を決め打ちしない。
  */
 function choose(n) {
   return evaluate(
     `(() => {
-       const b = [...document.querySelectorAll('button')]
-         .filter((x) => /^[アイウエオ]/.test(x.innerText.trim()));
+       const b = [...document.querySelectorAll('button.choice')];
        if (!b[${n}]) return 'NO_CHOICES';
        b[${n}].click();
        return 'OK';
@@ -354,8 +353,7 @@ show('計算ドリルの一覧', (await visible()).slice(0, 600));
         `(() => {
            const page = document.querySelector('.page');
            const text = page ? page.innerText : '';
-           const choices = [...document.querySelectorAll('button')]
-             .filter((x) => /^[アイウエオ]/.test(x.innerText.trim()));
+           const choices = [...document.querySelectorAll('button.choice')];
            return {
              choices: choices.length,
              labels: choices.map((c) => c.innerText.trim().slice(0, 28)),
@@ -375,7 +373,7 @@ show('計算ドリルの一覧', (await visible()).slice(0, 600));
       }
 
       const flags = [];
-      if (info.choices !== 5) flags.push(`★ 選択肢が ${info.choices} 個（五肢択一なので 5 個のはず）`);
+      if (info.choices !== 5) flags.push(`★ 選択肢が ${info.choices} 個（ドリルは数値の 5 択なので 5 個のはず）`);
       if (info.nan) flags.push('★ NaN/undefined/Infinity が出ている');
       // 同じ文字列の選択肢が 2 つあると、正解が一意に決まらない
       if (new Set(info.labels).size !== info.labels.length) flags.push('★ 同じ選択肢が重複している');
@@ -510,8 +508,7 @@ show('確認問題の設定', (await visible()).slice(0, 500));
         `(() => {
            const page = document.querySelector('.page');
            const text = page ? page.innerText : '';
-           const choices = [...document.querySelectorAll('button')]
-             .filter((x) => /^[アイウエオ]/.test(x.innerText.trim()));
+           const choices = [...document.querySelectorAll('button.choice')];
            return { choices: choices.length, head: text.slice(0, 120).replace(/\\s+/g, ' ') };
          })()`,
       );
@@ -521,9 +518,9 @@ show('確認問題の設定', (await visible()).slice(0, 500));
       }
       qReport.push(
         `${i + 1} 問目: 選択肢 ${info.choices} 個` +
-          (info.choices === 5 ? '' : '  ★ 五肢択一なので 5 個のはず'),
+          (info.choices >= 3 && info.choices <= 8 ? '' : '  ★ 解答群は 3〜8 個のはず'),
       );
-      await choose(i % 5);
+      await choose(i % info.choices);
       await sleep(150);
       await click('解答する');
       await sleep(250);

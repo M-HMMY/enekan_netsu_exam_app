@@ -192,36 +192,38 @@ for (const root of ROOTS) {
   }
 }
 
-// --- 四肢択一の名残 ---
+// --- 選択肢の数を決め打ちした名残 ---
 //
-// **この試験は五肢択一。**姉妹アプリ 5 本はすべて四肢択一だったので、
-// 移植したコードのあちこちに「4」が残る。型では防げない。
+// **この試験の確認問題は、空欄ごとに選択肢が 3〜8 個と違う**（CLAUDE.md「確認問題の形」）。
+// 姉妹アプリは四肢択一・五肢択一で数が決まっていたので、移植したコードのあちこちに
+// 「4」「5」が決め打ちで残る。型では防げない。
 //
-// 実際に残っていたもの（2026 年 9 月 13 日に発見）
+// 姉妹アプリで実際に残っていたもの（2026 年 9 月 13 日に発見）
 //   - 画面のキーボード案内「1〜4 で選択」…… 3 画面。
-//     `choiceIndexOf` は 5 に直っていたので、**押せば動くのに案内だけが 4** だった
+//     `choiceIndexOf` は直っていたので、**押せば動くのに案内だけが 4** だった
 //   - `scripts/drive.mjs` が選択肢を /^[アイウエ]/ で拾っていた …… 5 つめを数えていなかった
 //
-// どちらも「壊れていないように見えて、5 つめだけが無いことになる」壊れ方をする。
+// どちらも「壊れていないように見えて、最後の選択肢だけが無いことになる」壊れ方をする。
+// このアプリでは**数を決め打ちした書き方そのもの**を止める。
 {
   const FOUR = [
     {
       roots: ['src/pages', 'src/components'],
       exts: ['.tsx', '.ts'],
-      re: /<kbd>1<\/kbd>\s*〜\s*<kbd>4<\/kbd>/,
-      why: '画面の案内が「1〜4」です。五肢択一なので「1〜5」にしてください',
+      re: /<kbd>1<\/kbd>\s*〜\s*<kbd>\d<\/kbd>/,
+      why: '画面の案内が数字の決め打ちです。選択肢の数は問題ごとに違うので、`choices.length` を出してください',
     },
     {
       roots: ['src/pages', 'src/components', 'src/lib', 'scripts'],
       exts: ['.tsx', '.ts', '.mjs'],
-      re: /\[アイウエ\]/,
-      why: '選択肢を「ア〜エ」で拾っています。五肢択一なので「オ」まで含めてください',
+      re: /\[アイウエオ?\]/,
+      why: '選択肢を「ア〜エ／オ」で拾っています。解答群は最大ク（8 個）までです',
     },
     {
-      roots: ['src/lib'],
-      exts: ['.ts'],
-      re: /choiceIndexOf\(key: string, max = 4\)/,
-      why: 'choiceIndexOf の既定値が 4 です。五肢択一なので 5 にしてください',
+      roots: ['src/pages', 'src/components', 'src/lib'],
+      exts: ['.tsx', '.ts'],
+      re: /choiceIndexOf\(key\)|choiceIndexOf\(key: string, max = \d\)/,
+      why: 'choiceIndexOf に選択肢の数を渡していません（既定値は置かない方針）',
     },
   ];
 
@@ -481,9 +483,9 @@ if (problems.length > 0) {
     console.error('中のバックティックは ' + BS + BT + ' と書いてください（CLAUDE.md「バックスラッシュの落とし穴」）。');
     console.error('bash のヒアドキュメントはバックスラッシュを落とすので、Write ツールを使ってください。');
   }
-  if (problems.some((p) => p.why.includes('五肢択一'))) {
-    console.error('この試験は**五肢択一**です（姉妹アプリ 5 本は四肢択一でした）。');
-    console.error('CLAUDE.md の「姉妹アプリと決定的に違う 4 点」を参照してください。');
+  if (problems.some((p) => /決め打ち|最大ク|選択肢の数/.test(p.why))) {
+    console.error('この試験の確認問題は、空欄ごとに選択肢が 3〜8 個と違います（姉妹アプリは 4 択・5 択の固定でした）。');
+    console.error('CLAUDE.md の「確認問題の形」を参照してください。');
   }
   if (problems.some((p) => p.why.includes('更新関数'))) {
     console.error('記録は更新関数の外で 1 回だけ呼んでください。');
@@ -505,4 +507,4 @@ if (problems.length > 0) {
   process.exit(1);
 }
 
-console.log('本文の書式・五肢択一の取りこぼし: 問題なし');
+console.log('本文の書式・選択肢の数の決め打ち: 問題なし');

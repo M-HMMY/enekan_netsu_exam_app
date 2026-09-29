@@ -4,6 +4,7 @@ import { ChoiceList, CHOICE_LABELS } from './ChoiceList';
 import { LAW_PREAMBLE, categoryName } from '../data/categories';
 import { Markdown } from '../lib/markdown';
 import { sectionById } from '../data/textbook';
+import { passageById } from '../data/questions/passages';
 import { navigate } from '../lib/router';
 import { answerIndices, isCorrectAnswer, isMultiAnswer } from '../lib/answer';
 
@@ -54,6 +55,8 @@ export function QuestionCard({
   // 法令の問題には、本番と同じ前置きを置く。**飾りではない。**
   // 基準日（令和 8 年 4 月 1 日時点の法令）を示さないと、改正の前後で記述の正誤が割れる。`LAW_PREAMBLE` の注記を読むこと。
   const isLaw = q.categoryId === 'k1-law';
+  // 大問の前置き。本番と同じく、問いより先に設定を読ませる
+  const passage = q.passage ? passageById(q.passage) : undefined;
   const multi = isMultiAnswer(q.answer);
   const right = answerIndices(q.answer);
   const isCorrect = isCorrectAnswer(q.answer, selected);
@@ -77,6 +80,12 @@ export function QuestionCard({
             <li key={line}>{line}</li>
           ))}
         </ul>
+      )}
+
+      {passage && (
+        <div className="qpassage">
+          <Markdown source={passage.body} />
+        </div>
       )}
 
       <div className="qbody">

@@ -1,6 +1,10 @@
 import type { JSX } from 'react';
 
-export const CHOICE_LABELS = ['ア', 'イ', 'ウ', 'エ', 'オ'];
+/**
+ * 解答群の記号。本番と同じくア・イ・ウ…と振る。
+ * **長さは `MAX_CHOICES`（8）と揃えること。**足りないと 9 つめ以降の記号が空になる。
+ */
+export const CHOICE_LABELS = ['ア', 'イ', 'ウ', 'エ', 'オ', 'カ', 'キ', 'ク'];
 
 interface Props {
   choices: readonly string[];

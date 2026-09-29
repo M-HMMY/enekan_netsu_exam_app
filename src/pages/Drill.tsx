@@ -97,7 +97,7 @@ export function Drill(): JSX.Element {
     useCallback(
       (key: string) => {
         if (session === null) return;
-        const choice = choiceIndexOf(key);
+        const choice = choiceIndexOf(key, session.item.choices.length);
         if (choice !== null && !session.revealed) {
           setSession((s) => (s === null || s.revealed ? s : { ...s, selected: choice }));
           return;
@@ -253,7 +253,7 @@ export function Drill(): JSX.Element {
             </button>
           )}
           <span className="kbd-hint">
-            <kbd>1</kbd>〜<kbd>5</kbd> で選択、<kbd>Enter</kbd> で解答・次へ
+            <kbd>1</kbd>〜<kbd>{item.choices.length}</kbd> で選択、<kbd>Enter</kbd> で解答・次へ
           </span>
         </div>
       </article>

@@ -1041,6 +1041,16 @@ tr.low td {
   line-height: 1.9;
 }
 
+/* 大問の前置き。問いと見分けがつくよう、地を変えて一段引く */
+.qpassage {
+  margin: 0 0 14px;
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  font-size: 14px;
+  line-height: 1.8;
+}
+
 .qbody.supplement {
   padding: 12px 16px;
   border-radius: var(--radius);

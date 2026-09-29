@@ -20,12 +20,13 @@ export function useKeys(handler: (key: string) => void): void {
 }
 
 /**
- * 「1」〜「5」が押されたら 0〜4 を返す。それ以外は null。
+ * 「1」〜「max」が押されたら 0〜max-1 を返す。それ以外は null。
  *
- * **この試験は五肢択一なので既定は 5。**四肢択一の姉妹アプリから写すと 4 のままになる。
- * 手応えの選択など、5 未満の場面では `max` を渡して絞ること。
+ * **`max` は、その問題の選択肢の数を渡すこと。既定値は無い。**この試験は空欄ごとに
+ * 解答群の数が違う（3〜8 個）。既定値に頼ると、3 択の問題で「5」を押して
+ * 存在しない選択肢を選べてしまう。
  */
-export function choiceIndexOf(key: string, max = 5): number | null {
+export function choiceIndexOf(key: string, max: number): number | null {
   const n = Number(key);
   if (!Number.isInteger(n) || n < 1 || n > max) return null;
   return n - 1;

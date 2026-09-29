@@ -52,14 +52,14 @@ export function Review(): JSX.Element {
     [queue, idx, selected],
   );
 
-  // 1〜5 で選択（五肢択一）／手応えの指定、Enter で解答・標準の手応え
+  // 数字キーで選択（その問題の選択肢の数まで）／手応えの指定、Enter で解答・標準の手応え
   useKeys(
     useCallback(
       (key: string) => {
         const item = queue[idx];
         if (!item) return;
         if (!revealed) {
-          const choice = choiceIndexOf(key);
+          const choice = choiceIndexOf(key, item.question.choices.length);
           if (choice !== null) {
             setSelected((prev) => toggleChoice(item.question.answer, prev, choice));
             return;

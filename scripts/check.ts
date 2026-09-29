@@ -8,9 +8,11 @@
 import { CATEGORIES, FIELDS } from '../src/data/categories';
 import { SECTIONS } from '../src/data/textbook';
 import { QUESTIONS } from '../src/data/questions';
+import { PASSAGES } from '../src/data/questions/passages';
 import { DRILLS } from '../src/data/drills';
 import { isKnownCommand } from '../src/lib/mathSymbols';
-import { answerIndices, isMultiAnswer } from '../src/lib/answer';
+import { answerIndices, isMultiAnswer, MAX_CHOICES, MIN_CHOICES } from '../src/lib/answer';
+import { CHOICE_LABELS } from '../src/components/ChoiceList';
 import { renderCheck } from './render-check';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 
@@ -34,6 +36,18 @@ function dupes(label: string, ids: string[]): void {
     if (seen.has(id)) err(`${label}: ID が重複している → ${id}`);
     seen.add(id);
   }
+}
+
+/** 組合せ選択の記述に振る番号 */
+const CIRCLED = '①②③④⑤⑥⑦⑧⑨';
+
+/**
+ * 選択肢がすべて「①」「①と③」のような組合せか。
+ * 組合せの解答群は並びが決まっているので、正解の位置の偏りの検査から外す。
+ */
+function isComboChoices(choices: readonly string[]): boolean {
+  const re = new RegExp(`^[${CIRCLED}](?:と[${CIRCLED}])*$`);
+  return choices.length > 0 && choices.every((c) => re.test(c.trim()));
 }
 
 const categoryIds = new Set(CATEGORIES.map((c) => c.id));
@@ -105,20 +119,29 @@ for (const f of FIELDS) {
   }
 }
 
+// ---- 記号とキー操作が、選択肢の上限に届いているか ----
+// 記号（ア〜ク）が上限より少ないと、9 つめ以降の選択肢に記号が付かない。
+if (CHOICE_LABELS.length !== MAX_CHOICES) {
+  err(`選択肢の記号が ${CHOICE_LABELS.length} 個で、上限 MAX_CHOICES（${MAX_CHOICES}）と合わない（ChoiceList.tsx）`);
+}
+
 // ---- 問題の形 ----
 for (const q of QUESTIONS) {
-  // **五肢択一。**四肢択一の姉妹アプリから写した問題は、ここで止まる。
-  if (q.choices.length !== 5) err(`問題 ${q.id}: 選択肢が ${q.choices.length} 個（5 個であること）`);
+  // **解答群は 3〜8 個。**本番（令和 8 年度）の空欄ごとの解答群がこの範囲だった。
+  // 五肢択一の姉妹アプリと違い、5 に揃えない（docs/public-questions.md §2）。
+  if (q.choices.length < MIN_CHOICES || q.choices.length > MAX_CHOICES) {
+    err(`問題 ${q.id}: 選択肢が ${q.choices.length} 個（${MIN_CHOICES}〜${MAX_CHOICES} 個であること）`);
+  }
   if (new Set(q.choices).size !== q.choices.length) err(`問題 ${q.id}: 選択肢に重複がある`);
   if (q.explanation.trim() === '') err(`問題 ${q.id}: 解説が空`);
 
   // ---- 正解の添字 ----
-  // 公式の出題形式は五肢択一。answer は添字ひとつを取るのが通常だが、
+  // answer は添字ひとつを取るのが通常だが、
   // 型としては配列（複数選択）も受けられるので、どちらでも数えられるようにしてある。
   const right = answerIndices(q.answer);
   if (right.length === 0) err(`問題 ${q.id}: answer が空`);
   for (const i of right) {
-    if (!Number.isInteger(i) || i < 0 || i > 4) err(`問題 ${q.id}: answer が範囲外 ${i}`);
+    if (!Number.isInteger(i) || i < 0 || i >= q.choices.length) err(`問題 ${q.id}: answer が範囲外 ${i}`);
   }
   if (new Set(right).size !== right.length) err(`問題 ${q.id}: answer に同じ添字が 2 回ある`);
   if (right.length === q.choices.length) {
@@ -141,12 +164,47 @@ for (const q of QUESTIONS) {
   }
 }
 
+// ---- 大問の前置き（passage） ----
+// 前置きは複数の問題で共有するので、指し先の食い違いは画面では気づけない
+// （前置きが黙って表示されないだけになる）。
+{
+  dupes('前置き', PASSAGES.map((p) => p.id));
+  const used = new Set<string>();
+  for (const q of QUESTIONS) {
+    if (q.passage === undefined) continue;
+    used.add(q.passage);
+    const p = PASSAGES.find((x) => x.id === q.passage);
+    if (!p) {
+      err(`問題 ${q.id}: 前置き「${q.passage}」が passages.ts に無い`);
+      continue;
+    }
+    // 章をまたぐと、章ごとの模試で前置きの設定だけが別の課目から来ることになる
+    if (p.categoryId !== q.categoryId) {
+      err(`問題 ${q.id}: 前置き「${p.id}」の章（${p.categoryId}）と問題の章（${q.categoryId}）が違う`);
+    }
+  }
+  for (const p of PASSAGES) {
+    if (!categoryIds.has(p.categoryId)) err(`前置き ${p.id}: 章 ${p.categoryId} が存在しない`);
+    if (p.body.trim() === '') err(`前置き ${p.id}: 本文が空`);
+    if (!used.has(p.id)) warn(`前置き ${p.id}: どの問題からも使われていない`);
+  }
+  // 1 問しか使わない前置きは、問題文に書けば足りる。共有する意味がない
+  // （存在しない ID は上でエラーにしているので、ここでは数えない。注意を重ねると本題が埋もれる）
+  for (const id of used) {
+    if (!PASSAGES.some((p) => p.id === id)) continue;
+    const n = QUESTIONS.filter((q) => q.passage === id).length;
+    if (n === 1) warn(`前置き ${id}: 使っている問題が 1 問だけ。問題文に入れれば足りる`);
+  }
+}
+
 // ---- 問題が「解かなくても当てられる」形になっていないか ----
 // 実際にこれで偏っていた。試験対策として見抜かれる形は、問題として弱い。
 {
   const sameText = new Map<string, string[]>();
   for (const q of QUESTIONS) {
-    const key = q.question.replace(/\s+/g, '');
+    // **前置きが違えば、同じ問い（「空気比はどれか。」）が並ぶのは正常。**
+    // 本番の大問は設定を変えて同じ手順を問うので、前置きの ID を含めて比べる。
+    const key = `${q.passage ?? ''}|${q.question.replace(/\s+/g, '')}`;
     sameText.set(key, [...(sameText.get(key) ?? []), q.id]);
   }
   for (const ids of sameText.values()) {
@@ -163,8 +221,11 @@ for (const q of QUESTIONS) {
   // 問題文だけで測ると「〜の説明として、最も適切なものはどれか」という定型が
   // 効いて全部が似てしまうので、選択肢も混ぜて測る。
   {
+    // **組合せ選択（①、①と②…）は、選択肢を混ぜない。**7 つが全問で同じなので、
+    // 混ぜると中身の違う組合せ問題どうしまで「ほぼ同じ」になる（仮データで 0.80 を確かめた）。
     const grams = (q: (typeof QUESTIONS)[number]): Set<string> => {
-      const t = (q.question + [...q.choices].sort().join('')).replace(
+      const choices = isComboChoices(q.choices) ? '' : [...q.choices].sort().join('');
+      const t = (q.question + choices).replace(
         /[\s。、，,．.「」『』（）()]/g,
         '',
       );
@@ -213,7 +274,13 @@ for (const q of QUESTIONS) {
   // 正解の位置の偏りは**単一選択の問題だけで数える。**
   // 複数選択は 1 問で 2 つ以上の位置を埋めるので、混ぜると
   // 「ア が多い」のような偏りが実際より薄まって見えなくなる。
-  const pos = [0, 0, 0, 0, 0];
+  //
+  // **選択肢の数が問題ごとに違う（3〜8）ので、「ならせば 20 %」では測れない。**
+  // 3 択の問題はアに 1/3、8 択の問題はアに 1/8 の重みを持つ。
+  // 位置ごとに**期待値（Σ 1/n）**を足し、実際の数と比べる。
+  // **組合せ選択（①、①と②…）は外す。**選択肢の並びが決まっているので、正解の位置は内容で決まる。
+  const pos = new Array<number>(MAX_CHOICES).fill(0);
+  const expected = new Array<number>(MAX_CHOICES).fill(0);
   let single = 0;
   let longest = 0;
   let absoluteInCorrect = 0;
@@ -233,8 +300,9 @@ for (const q of QUESTIONS) {
   const tell = (c: string) => absolute.test(c) || universal.test(c);
   for (const q of QUESTIONS) {
     const right = new Set(answerIndices(q.answer));
-    if (!isMultiAnswer(q.answer)) {
+    if (!isMultiAnswer(q.answer) && !isComboChoices(q.choices)) {
       pos[answerIndices(q.answer)[0]] += 1;
+      for (let i = 0; i < q.choices.length; i += 1) expected[i] += 1 / q.choices.length;
       single += 1;
     }
     // 空白は見た目の長さに効かないので、除いてから数える。
@@ -303,11 +371,15 @@ for (const q of QUESTIONS) {
   const n = QUESTIONS.length;
   if (n >= 40) {
     pos.forEach((c, i) => {
-      const rate = c / single;
-      // **五肢択一なので、ならせば 20 %。**四肢択一（25 %）の姉妹アプリから
-      // 閾値を写すと、正常な分布まで警告してしまう。
-      if (rate < 0.12 || rate > 0.30) {
-        warn(`正解の位置が ${'アイウエオ'[i]} に偏っている（${c} / ${single} 問）。選択肢を並べ替えて散らすこと`);
+      const e = expected[i];
+      // 期待値が小さい位置（6〜8 番目は 6 択以上にしか無い）は、揺れが大きいので見ない
+      if (e < 5) return;
+      // 五肢択一の姉妹アプリの閾値（12〜30 % ＝ 期待 20 % の 0.6〜1.5 倍）を、比で引き継いだ
+      if (c < e * 0.6 || c > e * 1.5) {
+        warn(
+          `正解の位置が ${CHOICE_LABELS[i]} に偏っている（${c} 問、期待値 ${e.toFixed(1)} 問 / ${single} 問）。` +
+            '選択肢を並べ替えて散らすこと',
+        );
       }
     });
     if (longest / n > 0.3) {
@@ -332,26 +404,34 @@ for (const q of QUESTIONS) {
 // アが 0 問だった。**「迷ったらオ」で 15 問中 8 問取れる状態。**
 // 全体集計の検査は、この偏りを 1 件も警告しなかった。
 {
-  const byCategory = new Map<string, number[]>();
+  // 選択肢の数が問題ごとに違うので、全体の検査と同じく期待値（Σ 1/n）と比べる
+  const byCategory = new Map<string, { pos: number[]; expected: number[]; total: number }>();
   for (const q of QUESTIONS) {
     if (typeof q.answer !== 'number') continue; // 複数選択は対象外
-    const pos = byCategory.get(q.categoryId) ?? [0, 0, 0, 0, 0];
-    pos[q.answer] = (pos[q.answer] ?? 0) + 1;
-    byCategory.set(q.categoryId, pos);
+    if (isComboChoices(q.choices)) continue; // 組合せは並びが決まっている
+    const acc = byCategory.get(q.categoryId) ?? {
+      pos: new Array<number>(MAX_CHOICES).fill(0),
+      expected: new Array<number>(MAX_CHOICES).fill(0),
+      total: 0,
+    };
+    acc.pos[q.answer] += 1;
+    for (let i = 0; i < q.choices.length; i += 1) acc.expected[i] += 1 / q.choices.length;
+    acc.total += 1;
+    byCategory.set(q.categoryId, acc);
   }
-  for (const [categoryId, pos] of byCategory) {
-    const total = pos.reduce((a, b) => a + b, 0);
+  for (const [categoryId, { pos, expected, total }] of byCategory) {
     // 少ない章で閾値を当てると誤検出になる。10 問以上の章だけを見る。
     if (total < 10) continue;
     pos.forEach((c, i) => {
-      const rate = c / total;
-      // 章単位は問題数が少ないので、全体（0.12〜0.30）より幅を持たせる。
-      // それでも「1 つの位置に 4 割」「1 つの位置が 0」は拾える。
-      if (rate === 0 || rate > 0.4) {
+      const e = expected[i];
+      if (e < 2) return;
+      // 章単位は問題数が少ないので、全体より幅を持たせる。
+      // それでも「期待の 2 倍」「期待があるのに 0」は拾える。
+      if (c === 0 || c > e * 2) {
         const name = CATEGORIES.find((c2) => c2.id === categoryId)?.name ?? categoryId;
         warn(
-          `章「${name}」: 正解の位置が ${'アイウエオ'[i]} に ${c} / ${total} 問。` +
-            '模試は科目ごとに出すので、章のまとまりで当てられる',
+          `章「${name}」: 正解の位置が ${CHOICE_LABELS[i]} に ${c} 問（期待値 ${e.toFixed(1)} 問 / ${total} 問）。` +
+            '模試は課目ごとに出すので、章のまとまりで当てられる',
         );
       }
     });
@@ -360,176 +440,67 @@ for (const q of QUESTIONS) {
 
 // ---- 設問の形（組合せ選択）が崩れていないか ----
 //
-// **ここには以前「誤り選択の比率」を科目ごとに数える検査が入っていた。外した。**
+// **この試験の組合せ選択は「①〜③のうち、〜を全て挙げると [ 1 ] である」の形。**
+// 令和 8 年度の課目Ⅰ問題 1（法）で 5 空欄あり、**解答群はすべて同じ 7 つを同じ順に並べていた**
+// （`docs/public-questions.md` §2）。
 //
-// 経緯：乙種第 4 類版で「本番の比率へ寄せる」検査を作りかけ、実測で否定された。
-// そのあと甲種版が「一方へ振り切っていないか」だけを見る線として残し、
-// このアプリもそれを引き継いでいた。**しかしこの試験では、その軸自体が無い。**
+//   ア ①　イ ②　ウ ③　エ ①と②　オ ①と③　カ ②と③　キ ①と②と③
 //
-// **2026 年 9 月 15 日、令和 7 年度の公開問題 6 冊を読んで確定した
-// （`docs/public-questions.md` §2）。記述の正誤を問う設問はすべて「正しいものはどれか」で、
-// 「誤っているものはどれか」は乙種の 6 冊に 1 問もなかった。**
-// 残しておくと、**本番どおりに書いたデータを検査が弾く。**
-// 実際の試験を弾く検査は、検査のほうが間違っている。
+// 記述の番号は ① から始まるとは限らない（⑤〜⑦ を並べた空欄もあった）。
+// 並びは「1 つ → 2 つ → 3 つ」、同じ数の中は番号の若い順。
 //
-// 代わりに入れたのが、この試験に実在する形の検査である。
+// **ここには以前、高圧ガス甲種版の「イ・ロ・ハ・ニ」の組合せ検査と、
+// 「誤っているものを選べ」の形を警告する検査が入っていた。外した。**
+// どちらも高圧ガスの公開問題を根拠にしていて、この試験には当てはまらない。
+// 特に後者は、**この試験に「明らかに間違っているものは [1] 及び [2]」という空欄が
+// 実在する**（令和 8 年度課目Ⅲ問題 9）ので、残すと本番どおりの問題を弾く。
 //
-// | 科目 | 記述の数 | 選択肢 |
-// | --- | --- | --- |
-// | 法令 | イ・ロ・ハ の 3 つ | 単独・2 つ組・3 つ全部が混ざる |
-// | 保安管理技術 | イ・ロ・ハ・ニ の 4 つ | **必ず「2 要素の組 3 つ ＋ 3 要素の組 2 つ」** |
-// | 学識 | 4 つが基本 | 同上。ただし単独が混じる問もある。計算問題は数値 5 つ |
-//
-// **★ 根拠は令和 7 年度の 1 年分だけ（KHK は最新年度しか公開していない）。**
-// だから厳しい側は `err` にせず `warn` に寄せてある。
-// 令和 6 年度以前が手に入ったら、閾値を取り直すこと。
+// **★ 根拠は令和 8 年度の 1 年分だけ。**記述が 4 つ以上の組合せは見ていないので、
+// 3 つを超えるものは形だけ（番号の順・本文にある番号か）を見て、並びの一致は求めない。
 {
-  const LABELS = ['イ', 'ロ', 'ハ', 'ニ'] as const;
-  const comboRe = /^[イロハニ](?:、[イロハニ])*$/;
-  const NEGATIVE = ['誤っている', '妥当でない', '該当しない', '正しくない'];
-  /** 科目ごとに、本文へ並べる記述の数。法令だけ 3 つで、ほかは 4 つ */
-  const STATEMENTS: Record<string, number> = { law: 3, hoan: 4, 'gaku-kagaku': 4, 'gaku-kikai': 4 };
-
-  /** 科目ごとの集計。正解の要素数の偏りを最後にまとめて見る */
-  const byField = new Map<string, { combo: number; three: number; all: number }>();
-
   for (const q of QUESTIONS) {
-    // 原文を収録した問題は文章の作りを直せないので、形の検査から外す
     if (q.source !== undefined) continue;
-
-    const field = CATEGORIES.find((c) => c.id === q.categoryId)?.field;
     const choices = q.choices.map((c) => c.trim());
-    const isCombo = choices.every((c) => comboRe.test(c));
-    // 本文に並べた記述（「イ．」「ロ．」…）を拾う
-    const stated = LABELS.filter((l) => q.question.includes(`${l}．`));
+    if (!isComboChoices(choices)) continue;
 
-    // **否定語は設問の柱書きだけを見る。**
-    // 記述の中の「…とは限らない」「正しくない」まで拾うと、
-    // **正しい形の問題を「誤りを選べ」と誤警告する。**
-    // 柱書きは、最初の記述（「イ．」）より前の部分である。
-    const head = stated.length > 0 ? q.question.slice(0, q.question.indexOf('イ．')) : q.question;
-    if (NEGATIVE.some((w) => head.includes(w))) {
-      warn(
-        `問題 ${q.id}: 「誤っているものを選べ」の形になっている。` +
-          '令和 7 年度は「誤っているものはどれか」が乙種の 6 冊に 1 問も無かった（docs/public-questions.md §2）',
-      );
-    }
+    // 本文に並べた記述の番号（行頭の「①」など）
+    const stated = [...q.question.matchAll(new RegExp(`(?:^|${LF})\\s*([${CIRCLED}])`, 'g'))].map((m) => m[1]);
+    const sets = choices.map((c) => c.split('と'));
 
-    if (!isCombo) {
-      if (stated.length > 0) {
-        err(
-          `問題 ${q.id}: 本文に「${stated.join('・')}」の記述を並べているのに、` +
-            '選択肢が組合せになっていない（例: 「イ、ハ」）',
-        );
-      }
+    if (stated.length < 2) {
+      err(`問題 ${q.id}: 選択肢は組合せ（①と②…）なのに、本文の行頭に並べた記述が ${stated.length} 個しかない`);
       continue;
     }
-
-    // ここから下は組合せ選択の問題
-    if (stated.length < 3) {
-      // **「イ．」を拾えないだけで、記述は並んでいるかもしれない。**
-      // `イ.`（半角）や `イ、` のような書き方を見つけたら、そう言って直させる。
-      // ただ「記述が 0 個」と言われても、書いた人には何が悪いのか分からない。
-      const loose = LABELS.filter((l) => new RegExp(`(^|\n)\s*${l}[.、,)）]`).test(q.question));
-      if (loose.length >= 3) {
-        err(
-          `問題 ${q.id}: 記述の記号の後ろが「．」（全角）になっていない（${loose.join('・')}）。` +
-            '`digest.ts` と検査がこの形で拾うので、「イ．」と書くこと',
-        );
-      } else {
-        err(
-          `問題 ${q.id}: 選択肢は組合せなのに、本文に並べた記述が ${stated.length} 個しかない。` +
-            '「イ．」のように全角読点付きで、法令なら 3 つ、ほかの科目なら 4 つ並べること',
-        );
-      }
-      continue;
+    const order = stated.map((s) => CIRCLED.indexOf(s));
+    if (order.some((v, k) => k > 0 && v !== order[k - 1] + 1)) {
+      err(`問題 ${q.id}: 本文の記述の番号が連続していない（${stated.join('・')}）`);
     }
-    // **科目によって記述の数が決まっている。**法令は 3 つ、ほかは 4 つ。
-    // ここを見ないと「法令なのに 4 記述」「保安管理技術なのに 3 記述」が素通りする。
-    const want = field === undefined ? undefined : STATEMENTS[field];
-    if (want !== undefined && stated.length !== want) {
-      warn(
-        `問題 ${q.id}: 記述が ${stated.length} 個。この科目は ${want} 個` +
-          '（法令はイ・ロ・ハ、保安管理技術と学識はイ・ロ・ハ・ニ。docs/public-questions.md §2）',
-      );
-    }
-    const expected = LABELS.slice(0, stated.length).join('');
-    if (stated.join('') !== expected) {
-      err(`問題 ${q.id}: 記述の記号が飛んでいる（${stated.join('・')}）。イ・ロ・ハ・ニ の順に詰めること`);
+    if (!/全て挙げ|すべて挙げ|全て選|すべて選/.test(q.question)) {
+      warn(`問題 ${q.id}: 組合せ選択なのに、問いが「全て挙げると」の形になっていない`);
     }
 
-    const sets = choices.map((c) => c.split('、'));
     for (const [i, set] of sets.entries()) {
-      for (const l of set) {
-        if (!stated.includes(l)) {
-          err(`問題 ${q.id}: 選択肢 ${i + 1}「${choices[i]}」が、本文にない記述「${l}」を指している`);
+      for (const s of set) {
+        if (!stated.includes(s)) {
+          err(`問題 ${q.id}: 選択肢 ${CHOICE_LABELS[i]}「${choices[i]}」が、本文にない記述「${s}」を指している`);
         }
       }
-      // 本番は必ずイロハニの順に並べてある。「ハ、イ」のような順は出ない
-      const order = set.map((l) => LABELS.indexOf(l as (typeof LABELS)[number]));
-      if (order.some((v, k) => k > 0 && v <= order[k - 1])) {
-        err(`問題 ${q.id}: 選択肢 ${i + 1}「${choices[i]}」の記号が、イ・ロ・ハ・ニ の順になっていない`);
+      const idx = set.map((s) => CIRCLED.indexOf(s));
+      if (idx.some((v, k) => k > 0 && v <= idx[k - 1])) {
+        err(`問題 ${q.id}: 選択肢 ${CHOICE_LABELS[i]}「${choices[i]}」の番号が若い順になっていない`);
       }
     }
 
-    const seen = new Set<string>();
-    for (const c of choices) {
-      if (seen.has(c)) err(`問題 ${q.id}: 選択肢に同じ組合せ「${c}」が 2 回出ている`);
-      seen.add(c);
-    }
-
-    if (stated.length === 4) {
-      const sizes = sets.map((s) => s.length);
-      const two = sizes.filter((n) => n === 2).length;
-      const three = sizes.filter((n) => n === 3).length;
-      if (sizes.some((n) => n === 4)) {
-        warn(`問題 ${q.id}: 「イ、ロ、ハ、ニ」（4 つ全部）を選択肢にしている。本番では出ない形`);
-      }
-      // **「2 要素 3 個 ＋ 3 要素 2 個」を求めてよいのは保安管理技術だけ。**
-      // 令和 7 年度の保安管理技術は 15 問すべてがこの構成だったが、
-      // **学識はもっと緩く、単独（「イ」だけ）が選択肢に入る問題が実在する**
-      // （化学の問 11、機械の問 5・問 10。docs/public-questions.md §2）。
-      // 学識にこの規則を当てると、**本番どおりに書いた問題を弾く。**
-      if (field === 'hoan' && !(two === 3 && three === 2)) {
-        warn(
-          `問題 ${q.id}: 選択肢の構成が 2 要素 ${two} 個 / 3 要素 ${three} 個。` +
-            '保安管理技術は令和 7 年度の 15 問すべてが「2 要素 3 個 ＋ 3 要素 2 個」だった',
+    // 記述が 3 つなら、本番と同じ 7 つを同じ順に並べる
+    if (stated.length === 3) {
+      const [a, b, c] = stated;
+      const canonical = [a, b, c, `${a}と${b}`, `${a}と${c}`, `${b}と${c}`, `${a}と${b}と${c}`];
+      if (choices.join('/') !== canonical.join('/')) {
+        err(
+          `問題 ${q.id}: 記述 3 つの組合せは、本番と同じ 7 つをこの順に並べること → ${canonical.join('、')}` +
+            `（いまは ${choices.join('、')}）`,
         );
       }
-    }
-
-    // **複数選択の問題は、分母からも外す。**
-    // 「正解の組合せ」が一意に決まらないので分子には数えられない。
-    // 分母にだけ入れると、複数選択が増えるほど比率が下がって、
-    // **偏っていないのに「偏っている」と警告が出る。**
-    if (field === undefined || isMultiAnswer(q.answer)) continue;
-    const acc = byField.get(field) ?? { combo: 0, three: 0, all: 0 };
-    acc.combo += 1;
-    const size = sets[answerIndices(q.answer)[0]].length;
-    if (size === 3) acc.three += 1;
-    if (size === stated.length) acc.all += 1;
-    byField.set(field, acc);
-  }
-
-  for (const [fieldId, acc] of byField) {
-    if (acc.combo < 20) continue; // 少ない科目に閾値を当てると誤検出になる
-    const name = FIELDS.find((f) => f.id === fieldId)?.name ?? fieldId;
-    // 「全部正しい」が正解になる問題は、本番では法令 20 問中 2 問だけだった。
-    // 多すぎると「迷ったら全部を選ぶ」で当てられる
-    const allRate = acc.all / acc.combo;
-    if (allRate > 0.3) {
-      warn(
-        `科目「${name}」: 「記述が全部正しい」が正解の問題が ${acc.all} / ${acc.combo} 問` +
-          `（${Math.round(allRate * 100)} %）。本番（法令 20 問）は 2 問だけだった`,
-      );
-    }
-    // 正解の要素数が一方に寄ると、選択肢の長さで当てられる（本番はほぼ半々）
-    const threeRate = acc.three / acc.combo;
-    if (threeRate > 0.75 || threeRate < 0.15) {
-      warn(
-        `科目「${name}」: 正解が 3 要素の組合せである問題が ${acc.three} / ${acc.combo} 問` +
-          `（${Math.round(threeRate * 100)} %）。本番の保安管理技術は 2 要素 8 問 / 3 要素 7 問だった`,
-      );
     }
   }
 }
@@ -729,8 +700,8 @@ for (const s of SECTIONS) {
 for (const d of DRILLS) {
   for (let i = 0; i < 200; i++) {
     const item = d.generate();
-    // **5 択。**この試験は五肢択一式なので、ドリルも本番と同じ数にそろえてある
-    // （姉妹アプリは四肢択一で 4 択だった。移植したまま 4 だと手応えが変わる）。
+    // **5 択。**ドリルは数値だけで、本番の数値の空欄はほぼ 5 択だった（令和 8 年度）。
+    // 確認問題（3〜8 択）とは違い、ここは 5 に揃える。
     if (item.choices.length !== 5) {
       err(`ドリル ${d.id}: 選択肢が ${item.choices.length} 個になる場合がある（5 個であること）`);
       break;
