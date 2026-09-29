@@ -2,9 +2,12 @@ import type { JSX } from 'react';
 
 /**
  * 解答群の記号。本番と同じくア・イ・ウ…と振る。
- * **長さは `MAX_CHOICES`（8）と揃えること。**足りないと 9 つめ以降の記号が空になる。
+ * **長さは `MAX_CHOICES`（20）と揃えること。**足りないと、あふれた選択肢の記号が空になる。
  */
-export const CHOICE_LABELS = ['ア', 'イ', 'ウ', 'エ', 'オ', 'カ', 'キ', 'ク'];
+export const CHOICE_LABELS = [
+  'ア', 'イ', 'ウ', 'エ', 'オ', 'カ', 'キ', 'ク', 'ケ', 'コ',
+  'サ', 'シ', 'ス', 'セ', 'ソ', 'タ', 'チ', 'ツ', 'テ', 'ト',
+];
 
 interface Props {
   choices: readonly string[];

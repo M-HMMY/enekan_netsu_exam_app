@@ -194,7 +194,7 @@ for (const root of ROOTS) {
 
 // --- 選択肢の数を決め打ちした名残 ---
 //
-// **この試験の確認問題は、空欄ごとに選択肢が 3〜8 個と違う**（CLAUDE.md「確認問題の形」）。
+// **この試験の確認問題は、空欄ごとに選択肢が 2〜20 個と違う**（CLAUDE.md「確認問題の形」）。
 // 姉妹アプリは四肢択一・五肢択一で数が決まっていたので、移植したコードのあちこちに
 // 「4」「5」が決め打ちで残る。型では防げない。
 //
@@ -211,13 +211,13 @@ for (const root of ROOTS) {
       roots: ['src/pages', 'src/components'],
       exts: ['.tsx', '.ts'],
       re: /<kbd>1<\/kbd>\s*〜\s*<kbd>\d<\/kbd>/,
-      why: '画面の案内が数字の決め打ちです。選択肢の数は問題ごとに違うので、`choices.length` を出してください',
+      why: '画面の案内が数字の決め打ちです。選択肢の数は問題ごとに違うので、`keyChoiceCount(choices.length)` を出してください（数字キーは 9 個目まで）',
     },
     {
       roots: ['src/pages', 'src/components', 'src/lib', 'scripts'],
       exts: ['.tsx', '.ts', '.mjs'],
       re: /\[アイウエオ?\]/,
-      why: '選択肢を「ア〜エ／オ」で拾っています。解答群は最大ク（8 個）までです',
+      why: '選択肢を「ア〜エ／オ」で拾っています。解答群は最大ト（20 個）までです',
     },
     {
       roots: ['src/pages', 'src/components', 'src/lib'],
@@ -483,8 +483,8 @@ if (problems.length > 0) {
     console.error('中のバックティックは ' + BS + BT + ' と書いてください（CLAUDE.md「バックスラッシュの落とし穴」）。');
     console.error('bash のヒアドキュメントはバックスラッシュを落とすので、Write ツールを使ってください。');
   }
-  if (problems.some((p) => /決め打ち|最大ク|選択肢の数/.test(p.why))) {
-    console.error('この試験の確認問題は、空欄ごとに選択肢が 3〜8 個と違います（姉妹アプリは 4 択・5 択の固定でした）。');
+  if (problems.some((p) => /決め打ち|最大ト|選択肢の数/.test(p.why))) {
+    console.error('この試験の確認問題は、空欄ごとに選択肢が 2〜20 個と違います（姉妹アプリは 4 択・5 択の固定でした）。');
     console.error('CLAUDE.md の「確認問題の形」を参照してください。');
   }
   if (problems.some((p) => p.why.includes('更新関数'))) {

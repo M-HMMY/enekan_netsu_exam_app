@@ -15,7 +15,7 @@ import {
 import type { FieldId } from '../types';
 import { actions } from '../store';
 import { navigate } from '../lib/router';
-import { choiceIndexOf, useKeys } from '../lib/useKeys';
+import { choiceIndexOf, keyChoiceCount, keyChoiceNote, useKeys } from '../lib/useKeys';
 import { isCorrectAnswer, toggleChoice } from '../lib/answer';
 
 interface Item {
@@ -540,7 +540,7 @@ export function Mock(): JSX.Element {
         </button>
       </div>
       <p className="kbd-hint">
-        <kbd>1</kbd>〜<kbd>{item.q.choices.length}</kbd> で選択、<kbd>←</kbd> <kbd>→</kbd> で問題を移動できます
+        <kbd>1</kbd>〜<kbd>{keyChoiceCount(item.q.choices.length)}</kbd> で選択{keyChoiceNote(item.q.choices.length)}、<kbd>←</kbd> <kbd>→</kbd> で問題を移動できます
       </p>
 
       <section className="section">

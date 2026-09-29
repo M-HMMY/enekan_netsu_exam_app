@@ -6,7 +6,7 @@ import { sectionById } from '../data/textbook';
 import { QuestionCard } from '../components/QuestionCard';
 import { actions, useStore } from '../store';
 import { navigate, useRoute } from '../lib/router';
-import { choiceIndexOf, useKeys } from '../lib/useKeys';
+import { choiceIndexOf, keyChoiceCount, keyChoiceNote, useKeys } from '../lib/useKeys';
 import { isCorrectAnswer, toggleChoice } from '../lib/answer';
 
 function shuffle<T>(items: T[]): T[] {
@@ -125,7 +125,7 @@ export function Practice(): JSX.Element {
         <header className="page-head">
           <h1>確認問題</h1>
           <p className="lead">
-            本番の空欄 1 つぶんを 1 問として解き、その場で解説を確認します。選択肢の数は空欄によって 3〜8 個と違います。解答内容は自動的に間隔反復の復習キューへ登録されます。
+            本番の空欄 1 つぶんを 1 問として解き、その場で解説を確認します。選択肢の数は空欄によって 2〜20 個と違います。解答内容は自動的に間隔反復の復習キューへ登録されます。
           </p>
         </header>
 
@@ -286,7 +286,7 @@ export function Practice(): JSX.Element {
           中断する
         </button>
         <span className="kbd-hint">
-          <kbd>1</kbd>〜<kbd>{q.choices.length}</kbd> で選択、<kbd>Enter</kbd> で解答・次へ
+          <kbd>1</kbd>〜<kbd>{keyChoiceCount(q.choices.length)}</kbd> で選択{keyChoiceNote(q.choices.length)}、<kbd>Enter</kbd> で解答・次へ
         </span>
       </div>
     </div>

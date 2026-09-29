@@ -4,7 +4,7 @@ import { ChoiceList, CHOICE_LABELS } from '../components/ChoiceList';
 import { categoryName } from '../data/categories';
 import { actions, useStore } from '../store';
 import { navigate, useRoute } from '../lib/router';
-import { choiceIndexOf, useKeys } from '../lib/useKeys';
+import { choiceIndexOf, keyChoiceCount, keyChoiceNote, useKeys } from '../lib/useKeys';
 import { Markdown } from '../lib/markdown';
 
 interface Session {
@@ -126,7 +126,7 @@ export function Drill(): JSX.Element {
         <header className="page-head">
           <h1>計算ドリル</h1>
           <p className="lead">
-            出題のたびに数値が変わる自動生成問題です。同じ問題を暗記するのではなく、計算の手順そのものを身に付けるための練習で、何問でも続けられます。★ 本番の学識は記述式で、「根拠、計算式を示して答えよ」と書かれています。答えだけでは点になりません。ここでは選択肢から選びますが、選ぶ前に必ず紙へ式を書いてください。式を立てるところまでが本番です。
+            出題のたびに数値が変わる自動生成問題です。同じ問題を暗記するのではなく、計算の手順そのものを身に付けるための練習で、何問でも続けられます。★ 本番の計算は、解答群の数値から「計算結果に最も近いもの」を選ぶ形です。ただし大問の中で計算がつながっていて、前の答えを次で使います。選ぶ前に必ず紙へ式と途中の値を書いてください。電卓は √ までで、関数電卓は使えません。
           </p>
         </header>
 
@@ -253,7 +253,7 @@ export function Drill(): JSX.Element {
             </button>
           )}
           <span className="kbd-hint">
-            <kbd>1</kbd>〜<kbd>{item.choices.length}</kbd> で選択、<kbd>Enter</kbd> で解答・次へ
+            <kbd>1</kbd>〜<kbd>{keyChoiceCount(item.choices.length)}</kbd> で選択{keyChoiceNote(item.choices.length)}、<kbd>Enter</kbd> で解答・次へ
           </span>
         </div>
       </article>

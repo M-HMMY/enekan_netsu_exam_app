@@ -87,6 +87,16 @@ export function QuestionCard({
           <Markdown source={passage.body} />
         </div>
       )}
+      {/*
+        前置きが見つからないときは、黙って消さずに知らせる。前置きには問題の条件が書いてあるので、
+        消えると問題が解けなくなるのに、画面からは気づけない。`npm run check` はエラーにするが、
+        `npm run build` は check を通らないので、ここでも見えるようにしておく。
+      */}
+      {q.passage && !passage && (
+        <p className="qpassage qpassage-missing">
+          この問題の前提となる文章（{q.passage}）が見つかりません。問題データの不具合です。
+        </p>
+      )}
 
       <div className="qbody">
         <Markdown source={q.question} />

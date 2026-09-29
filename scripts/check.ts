@@ -50,6 +50,48 @@ function isComboChoices(choices: readonly string[]): boolean {
   return choices.length > 0 && choices.every((c) => re.test(c.trim()));
 }
 
+/**
+ * 正解位置の偏りの集計に入れる問題か。
+ *
+ * - **単一選択だけ。**複数選択は 1 問で 2 つ以上の位置を埋める
+ * - **組合せ選択は外す。**並びが決まっているので、正解の位置は内容で決まる（要素数の偏りは別に見る）
+ * - **出典付きは外す。**原文の並びなので直せない（`Question.source` の約束）
+ */
+function countsForPosition(q: (typeof QUESTIONS)[number]): q is (typeof QUESTIONS)[number] & { answer: number } {
+  return typeof q.answer === 'number' && !isComboChoices(q.choices) && q.source === undefined;
+}
+
+/**
+ * 位置ごとの正解数・期待値・標準化残差。
+ *
+ * 選択肢の数が問題ごとに違う（2〜20）ので、「ならせば 20 %」では測れない。
+ * 各問題で位置 i が正解になる確率は p = 1/n（n はその問題の選択肢数。i < n のときだけ）。
+ * 期待値 Σp と分散 Σp(1−p) を足し、**標準化残差 z = (実数 − 期待値) / √分散** で見る。
+ *
+ * 以前は「期待値の 0.6〜1.5 倍」「章で期待値 2 なのに 0」で警告していたが、
+ * codex のレビュー（2026 年 9 月 29 日）で、**期待値 2 の位置が 0 になるのは珍しくなく、
+ * 誤警告で本当の注意が埋もれる**と指摘されて置き換えた。
+ */
+function positionSkew(qs: readonly ((typeof QUESTIONS)[number] & { answer: number })[]) {
+  const count = new Array<number>(MAX_CHOICES).fill(0);
+  const mean = new Array<number>(MAX_CHOICES).fill(0);
+  const variance = new Array<number>(MAX_CHOICES).fill(0);
+  for (const q of qs) {
+    count[q.answer] += 1;
+    const p = 1 / q.choices.length;
+    for (let i = 0; i < q.choices.length; i += 1) {
+      mean[i] += p;
+      variance[i] += p * (1 - p);
+    }
+  }
+  return count.map((c, i) => ({
+    i,
+    c,
+    e: mean[i],
+    z: variance[i] > 0 ? (c - mean[i]) / Math.sqrt(variance[i]) : 0,
+  }));
+}
+
 const categoryIds = new Set(CATEGORIES.map((c) => c.id));
 const sectionIds = new Set(SECTIONS.map((s) => s.id));
 
@@ -120,19 +162,23 @@ for (const f of FIELDS) {
 }
 
 // ---- 記号とキー操作が、選択肢の上限に届いているか ----
-// 記号（ア〜ク）が上限より少ないと、9 つめ以降の選択肢に記号が付かない。
+// 記号（ア〜ト）が上限より少ないと、あふれたの選択肢に記号が付かない。
 if (CHOICE_LABELS.length !== MAX_CHOICES) {
   err(`選択肢の記号が ${CHOICE_LABELS.length} 個で、上限 MAX_CHOICES（${MAX_CHOICES}）と合わない（ChoiceList.tsx）`);
 }
 
 // ---- 問題の形 ----
 for (const q of QUESTIONS) {
-  // **解答群は 3〜8 個。**本番（令和 8 年度）の空欄ごとの解答群がこの範囲だった。
+  // **解答群は 2〜20 個。**本番（令和 6〜8 年度）の空欄ごとの解答群がこの範囲だった。
   // 五肢択一の姉妹アプリと違い、5 に揃えない（docs/public-questions.md §2）。
   if (q.choices.length < MIN_CHOICES || q.choices.length > MAX_CHOICES) {
     err(`問題 ${q.id}: 選択肢が ${q.choices.length} 個（${MIN_CHOICES}〜${MAX_CHOICES} 個であること）`);
   }
   if (new Set(q.choices).size !== q.choices.length) err(`問題 ${q.id}: 選択肢に重複がある`);
+  if (q.question.trim() === '') err(`問題 ${q.id}: 問題文が空`);
+  q.choices.forEach((c, i) => {
+    if (c.trim() === '') err(`問題 ${q.id}: 選択肢 ${CHOICE_LABELS[i] ?? i + 1} が空`);
+  });
   if (q.explanation.trim() === '') err(`問題 ${q.id}: 解説が空`);
 
   // ---- 正解の添字 ----
@@ -271,17 +317,7 @@ for (const q of QUESTIONS) {
     }
   }
 
-  // 正解の位置の偏りは**単一選択の問題だけで数える。**
-  // 複数選択は 1 問で 2 つ以上の位置を埋めるので、混ぜると
-  // 「ア が多い」のような偏りが実際より薄まって見えなくなる。
-  //
-  // **選択肢の数が問題ごとに違う（3〜8）ので、「ならせば 20 %」では測れない。**
-  // 3 択の問題はアに 1/3、8 択の問題はアに 1/8 の重みを持つ。
-  // 位置ごとに**期待値（Σ 1/n）**を足し、実際の数と比べる。
-  // **組合せ選択（①、①と②…）は外す。**選択肢の並びが決まっているので、正解の位置は内容で決まる。
-  const pos = new Array<number>(MAX_CHOICES).fill(0);
-  const expected = new Array<number>(MAX_CHOICES).fill(0);
-  let single = 0;
+  // 正解の位置の偏りは `positionSkew` で見る（対象は `countsForPosition`）
   let longest = 0;
   let absoluteInCorrect = 0;
   let absoluteInWrong = 0;
@@ -300,11 +336,6 @@ for (const q of QUESTIONS) {
   const tell = (c: string) => absolute.test(c) || universal.test(c);
   for (const q of QUESTIONS) {
     const right = new Set(answerIndices(q.answer));
-    if (!isMultiAnswer(q.answer) && !isComboChoices(q.choices)) {
-      pos[answerIndices(q.answer)[0]] += 1;
-      for (let i = 0; i < q.choices.length; i += 1) expected[i] += 1 / q.choices.length;
-      single += 1;
-    }
     // 空白は見た目の長さに効かないので、除いてから数える。
     const lens = q.choices.map((c) => c.replace(/\s/g, '').length);
     q.choices.forEach((c, i) => {
@@ -370,18 +401,15 @@ for (const q of QUESTIONS) {
   }
   const n = QUESTIONS.length;
   if (n >= 40) {
-    pos.forEach((c, i) => {
-      const e = expected[i];
-      // 期待値が小さい位置（6〜8 番目は 6 択以上にしか無い）は、揺れが大きいので見ない
-      if (e < 5) return;
-      // 五肢択一の姉妹アプリの閾値（12〜30 % ＝ 期待 20 % の 0.6〜1.5 倍）を、比で引き継いだ
-      if (c < e * 0.6 || c > e * 1.5) {
-        warn(
-          `正解の位置が ${CHOICE_LABELS[i]} に偏っている（${c} 問、期待値 ${e.toFixed(1)} 問 / ${single} 問）。` +
-            '選択肢を並べ替えて散らすこと',
-        );
-      }
-    });
+    const target = QUESTIONS.filter(countsForPosition);
+    for (const { i, c, e, z } of positionSkew(target)) {
+      // |z| ≥ 3 はまず偶然では出ない。期待値 2 未満の位置（大きい解答群の後ろのほう）は揺れが大きいので見ない
+      if (e < 2 || Math.abs(z) < 3) continue;
+      warn(
+        `正解の位置が ${CHOICE_LABELS[i]} に偏っている（${c} 問、期待値 ${e.toFixed(1)} 問、z = ${z.toFixed(1)}、` +
+          `対象 ${target.length} 問）。選択肢を並べ替えて散らすこと`,
+      );
+    }
     if (longest / n > 0.3) {
       warn(`正解がはっきり長い問題が ${longest} / ${n} 問。誤答も同じ密度で書くこと`);
     }
@@ -404,37 +432,33 @@ for (const q of QUESTIONS) {
 // アが 0 問だった。**「迷ったらオ」で 15 問中 8 問取れる状態。**
 // 全体集計の検査は、この偏りを 1 件も警告しなかった。
 {
-  // 選択肢の数が問題ごとに違うので、全体の検査と同じく期待値（Σ 1/n）と比べる
-  const byCategory = new Map<string, { pos: number[]; expected: number[]; total: number }>();
-  for (const q of QUESTIONS) {
-    if (typeof q.answer !== 'number') continue; // 複数選択は対象外
-    if (isComboChoices(q.choices)) continue; // 組合せは並びが決まっている
-    const acc = byCategory.get(q.categoryId) ?? {
-      pos: new Array<number>(MAX_CHOICES).fill(0),
-      expected: new Array<number>(MAX_CHOICES).fill(0),
-      total: 0,
-    };
-    acc.pos[q.answer] += 1;
-    for (let i = 0; i < q.choices.length; i += 1) acc.expected[i] += 1 / q.choices.length;
-    acc.total += 1;
-    byCategory.set(q.categoryId, acc);
-  }
-  for (const [categoryId, { pos, expected, total }] of byCategory) {
+  // 全体と同じく標準化残差で見る。上の prop-each の例（15 問中オが 8 問、期待値 3）は z ≈ 3.2 で拾える
+  for (const c of CATEGORIES) {
+    const target = QUESTIONS.filter((q) => q.categoryId === c.id).filter(countsForPosition);
     // 少ない章で閾値を当てると誤検出になる。10 問以上の章だけを見る。
-    if (total < 10) continue;
-    pos.forEach((c, i) => {
-      const e = expected[i];
-      if (e < 2) return;
-      // 章単位は問題数が少ないので、全体より幅を持たせる。
-      // それでも「期待の 2 倍」「期待があるのに 0」は拾える。
-      if (c === 0 || c > e * 2) {
-        const name = CATEGORIES.find((c2) => c2.id === categoryId)?.name ?? categoryId;
-        warn(
-          `章「${name}」: 正解の位置が ${CHOICE_LABELS[i]} に ${c} 問（期待値 ${e.toFixed(1)} 問 / ${total} 問）。` +
-            '模試は課目ごとに出すので、章のまとまりで当てられる',
-        );
-      }
-    });
+    if (target.length < 10) continue;
+    for (const { i, c: n, e, z } of positionSkew(target)) {
+      if (e < 2 || Math.abs(z) < 3) continue;
+      warn(
+        `章「${c.name}」: 正解の位置が ${CHOICE_LABELS[i]} に ${n} 問（期待値 ${e.toFixed(1)} 問、z = ${z.toFixed(1)}、` +
+          `対象 ${target.length} 問）。模試は課目ごとに出すので、章のまとまりで当てられる`,
+      );
+    }
+  }
+}
+
+// ---- 2 択が多すぎないか ----
+// **2 択は本番に実在するので禁じない**（`MIN_CHOICES` の説明）。ただし当て推量で 5 割取れるので、
+// 章の中で多すぎると、その章の正答率が実力より高く出る。2 割を目安にする（codex の提案）。
+for (const c of CATEGORIES) {
+  const qs = QUESTIONS.filter((q) => q.categoryId === c.id);
+  if (qs.length < 10) continue;
+  const two = qs.filter((q) => q.choices.length === 2).length;
+  if (two / qs.length > 0.2) {
+    warn(
+      `章「${c.name}」: 2 択が ${two} / ${qs.length} 問（${Math.round((two / qs.length) * 100)} %）。` +
+        '2 割を超えると当て推量で正答率が上がる。具体例を並べて選ばせる形などに書き換えること',
+    );
   }
 }
 
@@ -455,9 +479,18 @@ for (const q of QUESTIONS) {
 // 特に後者は、**この試験に「明らかに間違っているものは [1] 及び [2]」という空欄が
 // 実在する**（令和 8 年度課目Ⅲ問題 9）ので、残すと本番どおりの問題を弾く。
 //
-// **★ 根拠は令和 8 年度の 1 年分だけ。**記述が 4 つ以上の組合せは見ていないので、
-// 3 つを超えるものは形だけ（番号の順・本文にある番号か）を見て、並びの一致は求めない。
+// 令和 6・7 年度には、ほかの形もあった（`docs/public-questions.md` §2）。
+//
+// | 問い方 | 記述 | 解答群 |
+// | --- | --- | --- |
+// | 全て挙げると | ①〜③ | 7（上の並び） |
+// | 全て挙げると | ④〜⑦ | 11（2 つ組 6 ＋ 3 つ組 4 ＋ 4 つ全部） |
+// | 適切な記述を二つ挙げると | ①〜④ | 6（2 つ組だけ） |
+//
+// 並びの一致を求めるのは、令和 8 年度に 5 空欄すべてで揃っていた「①〜③・全て挙げる」だけ。
+// ほかは形（番号の順・本文にある番号か）だけを見る。
 {
+  const comboSizes: { id: string; all: boolean; size: number; of: number }[] = [];
   for (const q of QUESTIONS) {
     if (q.source !== undefined) continue;
     const choices = q.choices.map((c) => c.trim());
@@ -475,8 +508,13 @@ for (const q of QUESTIONS) {
     if (order.some((v, k) => k > 0 && v !== order[k - 1] + 1)) {
       err(`問題 ${q.id}: 本文の記述の番号が連続していない（${stated.join('・')}）`);
     }
-    if (!/全て挙げ|すべて挙げ|全て選|すべて選/.test(q.question)) {
-      warn(`問題 ${q.id}: 組合せ選択なのに、問いが「全て挙げると」の形になっていない`);
+    // 本番の組合せの問い方は 3 通りあった（令和 6〜8 年度）。
+    // 「全て挙げると」「適切な記述を二つ挙げると」「下線部が正しいものを一つ挙げると」
+    if (!/(全て|すべて|二つ|2 つ|一つ|1 つ)(を)?(挙げ|選)/.test(q.question)) {
+      warn(
+        `問題 ${q.id}: 組合せ選択なのに、いくつ挙げるのかが問いに書かれていない` +
+          '（「全て挙げると」「二つ挙げると」など）',
+      );
     }
 
     for (const [i, set] of sets.entries()) {
@@ -491,8 +529,28 @@ for (const q of QUESTIONS) {
       }
     }
 
-    // 記述が 3 つなら、本番と同じ 7 つを同じ順に並べる
-    if (stated.length === 3) {
+    // 「二つ挙げる」なら、選択肢はすべて 2 つ組で、組み方が過不足なく並ぶ（①〜④なら 6 通り）。
+    // 問いだけ見て選択肢を見ないと、単独や 3 つ組が混じっても通ってしまう（codex の指摘）。
+    if (/(二つ|2 つ)(を)?(挙げ|選)/.test(q.question)) {
+      const bad = choices.filter((_, i) => sets[i].length !== 2);
+      if (bad.length > 0) {
+        err(`問題 ${q.id}: 「二つ挙げる」なのに、2 つ組でない選択肢がある（${bad.join('、')}）`);
+      }
+      const pairs = (stated.length * (stated.length - 1)) / 2;
+      if (choices.length !== pairs) {
+        warn(`問題 ${q.id}: 記述 ${stated.length} つから二つ選ぶ組み方は ${pairs} 通りだが、選択肢は ${choices.length} 個`);
+      }
+    }
+
+    // 集計用：正解の組合せの要素数（全部か、いくつか）
+    if (!isMultiAnswer(q.answer)) {
+      const size = sets[answerIndices(q.answer)[0]]?.length ?? 0;
+      comboSizes.push({ id: q.id, all: /全て|すべて/.test(q.question), size, of: stated.length });
+    }
+
+    // 「全て挙げる」で記述が 3 つ・7 択なら、本番と同じ 7 つを同じ順に並べる
+    // （令和 8 年度に 5 空欄すべてで揃っていた形だけ。ほかの問い方は対象外）
+    if (/全て|すべて/.test(q.question) && stated.length === 3 && choices.length === 7) {
       const [a, b, c] = stated;
       const canonical = [a, b, c, `${a}と${b}`, `${a}と${c}`, `${b}と${c}`, `${a}と${b}と${c}`];
       if (choices.join('/') !== canonical.join('/')) {
@@ -503,23 +561,71 @@ for (const q of QUESTIONS) {
       }
     }
   }
+
+  // ---- 組合せの正解の偏り ----
+  // 組合せは並びが決まっているので、正解位置の検査から外してある（`countsForPosition`）。
+  // **外しただけだと「全部正しい」ばかり、「いつも 2 つ組」ばかりでも誰も気づかない**（codex の指摘）。
+  // 「全て挙げる」の問題だけで、正解が「全部」になる割合と、要素数の偏りを見る。
+  const all = comboSizes.filter((s) => s.all);
+  if (all.length >= 15) {
+    const everything = all.filter((s) => s.size === s.of).length;
+    if (everything / all.length > 0.3) {
+      warn(
+        `組合せ選択: 「全て挙げる」の正解が「全部」になる問題が ${everything} / ${all.length} 問。` +
+          '多いと「迷ったら全部」で当てられる',
+      );
+    }
+    const bySize = new Map<number, number>();
+    for (const s of all) bySize.set(s.size, (bySize.get(s.size) ?? 0) + 1);
+    for (const [size, count] of bySize) {
+      if (count / all.length > 0.6) {
+        warn(`組合せ選択: 「全て挙げる」の正解が ${size} 要素の問題が ${count} / ${all.length} 問に偏っている`);
+      }
+    }
+  }
 }
 
 // ---- 問題文が本番で読み切れる長さか ----
-// **この試験は時間に余裕がある。**1 区分 50 問 / 270 分なので 1 問あたり 5 分 24 秒で、
-// 姉妹アプリ（1 問 60 秒）の 5 倍以上ある。しかも**設問は記述を 3〜4 つ並べる組合せ選択**で、
-// 法令は条文を読ませる。**問題文はもともと長くなる。**
-// **姉妹アプリの閾値（120 字 / 160 字）をそのまま写すと、
-// 正常な問題まで警告が出て読み飛ばされるようになる。**
+// **本番は空欄 1 つあたりおよそ 1.5〜2 分。**課目Ⅰは 80 分で 42 空欄、課目Ⅱは 110 分で 56 空欄、
+// 課目Ⅲは 80 分で 39 空欄、課目Ⅳは 110 分でおよそ 80 空欄（令和 8 年度）。
+// その中で大問の前置きを読み、計算もする。**空欄 1 つぶんの問い（`question`）は短い**のが本番の形で、
+// 「①〜③から全て挙げると」の組合せだけが記述を並べて長くなる。
 //
-// それでも上限は要る。読むだけで 1 分かかる問題が並ぶと、本番の感覚から外れる。
-// 日本語は 1 分でおよそ 400〜600 字読めるので、200 字を目安・300 字を上限にする。
+// （以前ここには高圧ガス甲種版の「1 区分 50 問 / 270 分」という根拠が書いてあった。
+// 閾値は同じでよいが、根拠は別試験のものだったので書き直した。codex の指摘、2026 年 9 月 29 日）
+//
+// 日本語は 1 分でおよそ 400〜600 字読めるので、問い単体で 200 字を目安・300 字を上限にする。
 // **出典のある問題（公開問題）は原文どおりなので、長さを直せない。検査から外す。**
 for (const q of QUESTIONS) {
   if (q.source !== undefined) continue;
   const len = q.question.replace(/\s/g, '').length;
   if (len > 300) err(`問題 ${q.id}: 問題文が ${len} 字（200 字までを目安に切り詰める）`);
   else if (len > 200) warn(`問題 ${q.id}: 問題文が ${len} 字とやや長い`);
+}
+
+// ---- 大問の前置きの長さと、前置きへの正解の漏れ ----
+// **前置きは、それを指す問題のたびに毎回表示される。**本番では大問の冒頭で 1 回読むだけだが、
+// このアプリでは復習のたびに読み直すので、長いと負担が問題数ぶん積み上がる。
+// 本番の大問の冒頭（設定と与条件）は 300〜500 字ほどだったので、600 字を目安にする。
+//
+// **前置きに後続の空欄の答えが書いてあると、その前置きを使う全問に答えが漏れる**（codex の指摘）。
+// 前置きには「全空欄に共通する設定と与条件」だけを書く約束（`Question.passage`）。
+// 正解の選択肢の文字列が前置きにそのまま出ていたら注意する。
+// 短い語（「2」「水」など）は偶然一致するので、3 字以上の選択肢だけを見る。誤検出がありうるので注意どまり。
+for (const p of PASSAGES) {
+  const len = p.body.replace(/\s/g, '').length;
+  if (len > 600) warn(`前置き ${p.id}: ${len} 字。問題のたびに表示されるので 600 字までを目安に`);
+}
+for (const q of QUESTIONS) {
+  if (q.passage === undefined) continue;
+  const body = PASSAGES.find((p) => p.id === q.passage)?.body;
+  if (body === undefined) continue;
+  for (const i of answerIndices(q.answer)) {
+    const right = q.choices[i]?.trim() ?? '';
+    if (right.replace(/\s/g, '').length >= 3 && body.includes(right)) {
+      warn(`問題 ${q.id}: 正解「${right}」が前置き ${q.passage} にそのまま書かれている（答えが漏れていないか）`);
+    }
+  }
 }
 
 // ---- 図の題の「N つ」と、実際の数の食い違い ----
@@ -701,7 +807,7 @@ for (const d of DRILLS) {
   for (let i = 0; i < 200; i++) {
     const item = d.generate();
     // **5 択。**ドリルは数値だけで、本番の数値の空欄はほぼ 5 択だった（令和 8 年度）。
-    // 確認問題（3〜8 択）とは違い、ここは 5 に揃える。
+    // 確認問題（2〜20 択）とは違い、ここは 5 に揃える。
     if (item.choices.length !== 5) {
       err(`ドリル ${d.id}: 選択肢が ${item.choices.length} 個になる場合がある（5 個であること）`);
       break;

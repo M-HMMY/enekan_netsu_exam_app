@@ -152,7 +152,7 @@ function click(text, tag = 'button') {
  *
  * **選択肢は記号（ア、イ…）ではなく `.choice` のクラスで拾う。**
  * 姉妹アプリは「ア〜エで始まるボタン」を正規表現で拾っていて、5 つめを押せないことに黙って気づけなかった。
- * この試験は空欄ごとに 3〜8 個（ア〜ク）と数が違うので、記号の範囲を決め打ちしない。
+ * この試験は空欄ごとに 2〜20 個（ア〜ト）と数が違うので、記号の範囲を決め打ちしない。
  */
 function choose(n) {
   return evaluate(
@@ -518,7 +518,7 @@ show('確認問題の設定', (await visible()).slice(0, 500));
       }
       qReport.push(
         `${i + 1} 問目: 選択肢 ${info.choices} 個` +
-          (info.choices >= 3 && info.choices <= 8 ? '' : '  ★ 解答群は 3〜8 個のはず'),
+          (info.choices >= 2 && info.choices <= 20 ? '' : '  ★ 解答群は 2〜20 個のはず'),
       );
       await choose(i % info.choices);
       await sleep(150);
