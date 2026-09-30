@@ -69,7 +69,6 @@ export const FIELDS: { id: FieldId; name: string; note: string; questions: numbe
 /** 課目Ⅳの＊選択の章から、本番で選んで解答する数（受験案内 注 2） */
 export const ELECTIVES_TO_ANSWER = 2;
 
-const TODO = '**この章はまだ書かれていません。**節割りは `docs/section-plan.md` にあります。';
 
 /**
  * 章。**本番の大問と 1 対 1 です**（`docs/section-plan.md` §1・§4）。
@@ -87,7 +86,7 @@ export const CATEGORIES: Category[] = [
     syllabus: '範囲外',
     questions: 0,
     points: 0,
-    intro: TODO,
+    intro: '試験の形、この教本の歩き方、計算と電卓の約束、用語ミニ辞典の 4 節です。**試験範囲ではありませんが、最初に読んでください。**4 課目の配点と 6 割の線、課目合格の免除を、ここで先にそろえます。',
   },
 
   // ---- 課目Ⅰ エネルギー総合管理及び法規（必須基礎区分） ----
@@ -99,7 +98,7 @@ export const CATEGORIES: Category[] = [
     syllabus: '課目Ⅰ 問題 1（省エネ法及び命令）。令和 8 年 4 月 1 日時点で施行されている法令',
     questions: 1,
     points: 50,
-    intro: TODO,
+    intro: '課目Ⅰ問題 1（50 点）。法の目的とエネルギーの定義から、原油換算、特定事業者の指定、管理者の選任、中長期計画と定期の報告までを追います。**最後の節で、1 つの事業者に当てはめて通します。**工場等の事例は令和 6〜8 年度とも出ました。',
   },
   {
     id: 'k1-policy',
@@ -109,7 +108,7 @@ export const CATEGORIES: Category[] = [
     syllabus: '課目Ⅰ 問題 2（エネルギー情勢・政策、エネルギー概論）',
     questions: 1,
     points: 50,
-    intro: TODO,
+    intro: '課目Ⅰ問題 2（50 点）。SI 単位とエネルギーの換算、エネルギーの変換と貯蔵、日本の需給、温暖化対策、水素・アンモニアなどの新しい燃料、エネルギー政策の骨格です。**需給と政策の数値は年版で変わります。**何年版の資料の値かも一緒に覚えてください。',
   },
   {
     id: 'k1-tech',
@@ -119,7 +118,7 @@ export const CATEGORIES: Category[] = [
     syllabus: '課目Ⅰ 問題 3（エネルギー管理技術の基礎）',
     questions: 1,
     points: 100,
-    intro: TODO,
+    intro: '課目Ⅰ問題 3（**100 点**）。**配点がいちばん重い章です。**工場等判断基準の空欄に続いて、熱・燃焼・流体・発電と空調・電気・照明の小問が並びます。**熱分野の受験者でも電気は避けられません。**電気の節は、電気を学んだことのない人が入口から読める深さで書いてあります。',
   },
 
   // ---- 課目Ⅱ 熱と流体の流れの基礎 ----
@@ -131,7 +130,7 @@ export const CATEGORIES: Category[] = [
     syllabus: '課目Ⅱ 問題 4（熱力学の基礎 2 問題のうち、理想気体の側）',
     questions: 1,
     points: 50,
-    intro: TODO,
+    intro: '課目Ⅱ問題 4（50 点）。第一法則、理想気体の状態変化、エントロピー、カルノー・オットー・ディーゼル・サバテ・ブレイトンの各サイクル、エクセルギーです。**課目Ⅲ・Ⅳの式の土台になるので、この教本はここから読む構成です。**',
   },
   {
     id: 'k2-vapor',
@@ -141,7 +140,7 @@ export const CATEGORIES: Category[] = [
     syllabus: '課目Ⅱ 問題 5（熱力学の基礎 2 問題のうち、相変化する作動流体の側）',
     questions: 1,
     points: 50,
-    intro: TODO,
+    intro: '課目Ⅱ問題 5（50 点）。相変化と蒸気の状態、**蒸気表の引き方**、ランキンサイクルと再熱・再生、蒸気圧縮冷凍サイクルと成績係数です。蒸気表を使う計算は令和 6〜8 年度とも出ました。',
   },
   {
     id: 'k2-fluid',
@@ -151,7 +150,7 @@ export const CATEGORIES: Category[] = [
     syllabus: '課目Ⅱ 問題 6（流体工学の基礎）',
     questions: 1,
     points: 50,
-    intro: TODO,
+    intro: '課目Ⅱ問題 6（50 点）。静水力学、連続の式とベルヌーイの式、流量計、レイノルズ数、管摩擦と局所損失、ポンプと送風機です。**損失や動力が流速の何乗に比例するか**を、式から言えるようにします。',
   },
   {
     id: 'k2-heat',
@@ -161,7 +160,7 @@ export const CATEGORIES: Category[] = [
     syllabus: '課目Ⅱ 問題 7（伝熱工学の基礎）',
     questions: 1,
     points: 50,
-    intro: TODO,
+    intro: '課目Ⅱ問題 7（50 点）。熱伝導・対流・放射の 3 つの形、熱通過、熱交換器の対数平均温度差と有効度、凝縮と沸騰です。炉壁の伝導と放射は、課目Ⅰ問題 3 の小問にも出ます。',
   },
 
   // ---- 課目Ⅲ 燃料と燃焼 ----
@@ -173,7 +172,7 @@ export const CATEGORIES: Category[] = [
     syllabus: '課目Ⅲ 問題 8（燃料及び燃焼管理 2 問題のうち、燃料の側）',
     questions: 1,
     points: 30,
-    intro: TODO,
+    intro: '課目Ⅲ問題 8（30 点）。燃料の分類と発熱量、固体・液体・気体燃料の性状、燃料転換と CO₂、燃焼の基礎（燃焼速度・可燃範囲・着火・すす）です。',
   },
   {
     id: 'k3-burn',
@@ -183,7 +182,7 @@ export const CATEGORIES: Category[] = [
     syllabus: '課目Ⅲ 問題 9（燃料及び燃焼管理 2 問題のうち、燃焼装置と管理の側）',
     questions: 1,
     points: 30,
-    intro: TODO,
+    intro: '課目Ⅲ問題 9（30 点）。気体・液体・固体燃料の燃焼装置、通風と空気比の管理、ばいじん・SOx・NOx、排ガス分析です。**この大問は「明らかに間違っているもの 2 つ」を選ぶ形が、令和 6〜8 年度とも出ました。**',
   },
   {
     id: 'k3-calc',
@@ -193,7 +192,7 @@ export const CATEGORIES: Category[] = [
     syllabus: '課目Ⅲ 問題 10（燃焼計算）',
     questions: 1,
     points: 50,
-    intro: TODO,
+    intro: '課目Ⅲ問題 10（50 点）。理論空気量と燃焼ガス量、空気比、排ガスの組成から空気比を出す計算、排ガス熱損失、空気予熱です。**全部の空欄が 1 本の計算でつながります。**節も、1 つの燃料を通して前の節の答えを次で使う並びにしてあります。',
   },
 
   // ---- 課目Ⅳ 熱利用設備及びその管理 ----
@@ -206,7 +205,7 @@ export const CATEGORIES: Category[] = [
     syllabus: '課目Ⅳ 問題 11（計測及び制御 2 問題のうち、計測の側）',
     questions: 1,
     points: 50,
-    intro: TODO,
+    intro: '課目Ⅳ問題 11（50 点）。計測の基礎、温度（熱電対・測温抵抗体・放射温度計）、流量、圧力、液面と成分の計測です。熱電対は令和 6〜8 年度とも出ました。',
   },
   {
     id: 'k4-control',
@@ -216,7 +215,7 @@ export const CATEGORIES: Category[] = [
     syllabus: '課目Ⅳ 問題 12（計測及び制御 2 問題のうち、制御の側）',
     questions: 1,
     points: 50,
-    intro: TODO,
+    intro: '課目Ⅳ問題 12（50 点）。制御の分類、ブロック線図と伝達関数、一次遅れとむだ時間、**PID 動作とオフセット**、カスケード制御とボイラの制御系、回転速度制御です。',
   },
   {
     id: 'k4-boiler',
@@ -226,7 +225,7 @@ export const CATEGORIES: Category[] = [
     syllabus: '課目Ⅳ 問題 13（ボイラ・蒸気輸送貯蔵装置・原動機 2 問題のうち、ボイラと蒸気の側）',
     questions: 1,
     points: 50,
-    intro: TODO,
+    intro: '課目Ⅳ問題 13（50 点）。ボイラの種類と熱勘定、**表から蒸発量・効率・排ガス熱損失を出す計算**、ボイラ水の管理、蒸気配管・スチームトラップ・ドレン回収です。ボイラの表の計算は令和 6〜8 年度とも出ました。',
   },
   {
     id: 'k4-engine',
@@ -236,7 +235,7 @@ export const CATEGORIES: Category[] = [
     syllabus: '課目Ⅳ 問題 14（ボイラ・蒸気輸送貯蔵装置・原動機 2 問題のうち、原動機の側）',
     questions: 1,
     points: 50,
-    intro: TODO,
+    intro: '課目Ⅳ問題 14（50 点）。蒸気タービン、内燃機関、ガスタービンとその燃焼器、コンバインドサイクルとコージェネレーションです。**サイクルの式は課目Ⅱの熱力学の章に置き、この章では構造と運転を扱います。**',
   },
   {
     id: 'k4-hx',
@@ -247,7 +246,7 @@ export const CATEGORIES: Category[] = [
     questions: 1,
     points: 40,
     elective: true,
-    intro: TODO,
+    intro: '**選択の章（4 分野から 2 つを選ぶ）。**課目Ⅳ問題 15（40 点）。熱交換器の形式、この試験で使う温度効率とエネルギー効率、汚れ係数、廃熱回収装置、ヒートパイプとヒートポンプ、冷却塔です。課目Ⅱの伝熱と重なるので、課目Ⅱを読んだ人には近い分野です。',
   },
   {
     id: 'k4-refrig',
@@ -258,7 +257,7 @@ export const CATEGORIES: Category[] = [
     questions: 1,
     points: 40,
     elective: true,
-    intro: TODO,
+    intro: '**選択の章（4 分野から 2 つを選ぶ）。**課目Ⅳ問題 16（40 点）。湿り空気と h-x 線図、空調のプロセスと負荷、蒸気圧縮冷凍機と吸収冷凍機、熱源方式と搬送動力です。冷凍サイクルの熱力学は課目Ⅱと重なります。湿り空気線図は令和 6〜8 年度とも出ました。',
   },
   {
     id: 'k4-furnace',
@@ -269,7 +268,7 @@ export const CATEGORIES: Category[] = [
     questions: 1,
     points: 40,
     elective: true,
-    intro: TODO,
+    intro: '**選択の章（4 分野から 2 つを選ぶ）。**課目Ⅳ問題 17（40 点）。工業炉の分類と熱勘定、省エネ（排熱回収・リジェネレイティブバーナ・酸素富化）、**判断基準の工業炉の基準値**、耐火物と断熱材です。基準値は課目Ⅰの判断基準とも重なります。',
   },
   {
     id: 'k4-process',
@@ -280,7 +279,7 @@ export const CATEGORIES: Category[] = [
     questions: 1,
     points: 40,
     elective: true,
-    intro: TODO,
+    intro: '**選択の章（4 分野から 2 つを選ぶ）。**課目Ⅳ問題 18（40 点）。気液平衡と蒸留、蒸発と濃縮、**乾燥（含水率と物質収支・熱収支）**、乾留とガス化です。化学工学に慣れた人向きの分野です。乾燥の含水率と収支は令和 6〜8 年度とも出ました。',
   },
 ];
 
