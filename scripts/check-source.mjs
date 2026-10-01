@@ -159,9 +159,27 @@ for (const root of ROOTS) {
         break; // 1 ファイル 1 件でよい（直せば次が見える）
       }
 
-      // ★ 以前はここで「細空きの \, は読点として出るので \ に書くこと」と弾いていた。
-      //   **2026 年 9 月 30 日に描画部品（src/lib/math.tsx）のほうを直し、\, を空白として描くようにした。**
-      //   だから \, はそのまま書いてよい。戻っていないかは check.ts が実際に描いて確かめている。
+      // ★ 細空き（\, \; \: \!）も、**ソースでは 2 本**です（2026 年 10 月 1 日）。
+      //   2026 年 9 月 30 日に描画部品（src/lib/math.tsx）が \, を空白として描くよう直したので、
+      //   **描画部品に 1 本届けば**空白になる。ソースに 2 本書けば 1 本届く。
+      //   **ソースに 1 本だと、TypeScript が食って「,」だけが届き、画面に読点が出ます**
+      //   （ho-25 に `$Q = UA\,\\Delta T$` が 5 か所入り、画面に「UA,ΔT」と出た）。
+      //   上の奇数本の検査は英字しか見ていなかったので、記号の側をここで見る。
+      //   「\, はそのまま書いてよい」という前の注記が、1 本でよいと読めたのが原因でした。
+      const oddThin = new RegExp('(' + BS + BS + '+)([,;:!])', 'g');
+      let t;
+      while ((t = oddThin.exec(body)) !== null) {
+        if (t[1].length % 2 === 0) continue;
+        problems.push({
+          file,
+          line: text.slice(0, start + t.index).split('\n').length,
+          text: body.slice(Math.max(0, t.index - 12), t.index + t[0].length + 4).replace(/\n/g, ' '),
+          why:
+            'バックスラッシュ ' + t[1].length + ' 本 + ' + t[2] + ' です。TypeScript が食って画面に「' + t[2] +
+            '」が出ます。細空きなら ' + BS + BS + t[2] + ' と 2 本で書いてください',
+        });
+        break;
+      }
 
       bodyOpen.lastIndex = end;
     }
