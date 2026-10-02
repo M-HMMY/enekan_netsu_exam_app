@@ -181,6 +181,24 @@ for (const root of ROOTS) {
         break;
       }
 
+      // ★ 中かっこなしの添字の命令・アクセントは、自前の描画部品では崩れます（2026 年 10 月 2 日）。
+      //   `T_\\infty` は画面に「T infty」と生のまま出て、`\\dot m` は点が m の手前の空白に載った
+      //   （エネ管の k2-heat。npm run dump の「生の記号」の見張りは ** :: ``` しか見ないので素通りした）。
+      //   添字・上付きに命令を置くなら `T_{\\infty}`、アクセントは `\\dot{m}` と中かっこで包むこと。
+      const bareCmd = new RegExp('([_^])' + BS + BS + '([a-zA-Z]+)|' + BS + BS + '(dot|ddot|bar|hat|vec|tilde|overline) ', 'g');
+      let c;
+      while ((c = bareCmd.exec(body)) !== null) {
+        problems.push({
+          file,
+          line: text.slice(0, start + c.index).split('\n').length,
+          text: body.slice(Math.max(0, c.index - 12), c.index + c[0].length + 6).replace(/\n/g, ' '),
+          why: c[1]
+            ? '添字・上付きに命令を中かっこなしで書いています。' + c[1] + '{' + BS + BS + c[2] + '} と包んでください（崩れて生の文字が出ます）'
+            : BS + BS + c[3] + ' のあとが空白です。' + BS + BS + c[3] + '{m} のように中かっこで包んでください（記号が空白の上に載ります）',
+        });
+        break;
+      }
+
       bodyOpen.lastIndex = end;
     }
   }
