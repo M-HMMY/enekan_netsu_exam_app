@@ -199,6 +199,25 @@ for (const root of ROOTS) {
         break;
       }
 
+      // ★ flow 図の行頭に `->` を書かない（2026 年 10 月 4 日、エネ管の fc-13）。
+      //   flow は 1 行を 1 つの箱にして矢印を自分で描くので、`->` は箱の中に文字として出る
+      //   （画面では「→」の次に「-> 理論酸素量…」）。`->` を解釈するのは sequence 図だけ。
+      //   dump の「生の記号」の見張りは ** :: ``` しか見ないので素通りした。
+      const fence = BS + BT + BS + BT + BS + BT;
+      const flowRe = new RegExp(fence.replace(/[\\`]/g, (ch) => BS + ch) + 'diagram:flow\\n([\\s\\S]*?)' + fence.replace(/[\\`]/g, (ch) => BS + ch), 'g');
+      let f;
+      while ((f = flowRe.exec(body)) !== null) {
+        const bad = f[1].split('\n').findIndex((l) => /^\s*-+>/.test(l));
+        if (bad === -1) continue;
+        problems.push({
+          file,
+          line: text.slice(0, start + f.index).split('\n').length + 1 + bad,
+          text: f[1].split('\n')[bad].slice(0, 40),
+          why: 'flow 図の行頭に -> があります。flow は矢印を自分で描くので、箱の中に「->」が文字で出ます。行頭の -> を消してください',
+        });
+        break;
+      }
+
       bodyOpen.lastIndex = end;
     }
   }

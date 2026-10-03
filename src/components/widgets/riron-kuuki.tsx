@@ -40,7 +40,7 @@ export default function RironKuuki(): JSX.Element {
         <span className="widget-title">理論酸素量と理論空気量</span>
       </div>
       <p className="widget-lead">
-        炭化水素 C<sub>x</sub>H<sub>y</sub> の完全燃焼に必要な理論酸素量は、
+        炭化水素 C<sub>x</sub>H<sub>y</sub> 1 モルの完全燃焼に必要な理論酸素量は、
         <strong>x ＋ y/4</strong> モルです。反応式を書かなくても、この式ひとつで出せます。
       </p>
 
@@ -86,8 +86,8 @@ export default function RironKuuki(): JSX.Element {
         <strong>理論空気量は理論酸素量のおよそ 4.8 倍</strong>と覚えておくと検算になります。
       </p>
       <p className="widget-note">
-        ★ 最後に出した化学量論組成は、<strong>燃焼速度が最大になる組成</strong>のおおよその位置でもあります。
-        最小発火エネルギーと消炎距離が最小になるのも、このあたりです。
+        ★ 最後に出した化学量論組成は、<strong>燃焼速度が最大になる組成</strong>のおおよその位置でもあります（正確には、わずかに燃料が濃い側）。
+        最小着火エネルギーと消炎距離が最小になるのも、このあたりです（重い炭化水素ほど燃料が濃い側に寄ります）。
         ただし<strong>可燃範囲の中央ではありません</strong>。多くの炭化水素では、
         上で出した化学量論組成は<strong>中央より下限界寄り</strong>にあります。
         可燃範囲そのものは、燃焼の基礎の節（燃料と燃焼の基礎の章）で扱います。
