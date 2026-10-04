@@ -56,6 +56,16 @@ for (const root of ROOTS) {
     const lines = text.split('\n');
 
     lines.forEach((line, i) => {
+      // ★ 節の題にバッククォートを入れない（2026 年 10 月 4 日、hu-7）。
+      //   section-plan の題の列にある注記（「成分は `fc-12` とつなぐ」）を写すと、画面の題に生の ` が出る。
+      if (/^\s*title:\s*'[^']*`/.test(line)) {
+        problems.push({
+          file,
+          line: i + 1,
+          text: line.trim().slice(0, 60),
+          why: '題にバッククォートがあります。section-plan の注記を写さず、題だけにしてください',
+        });
+      }
       // 行頭のフェンスが生のままになっていないか。
       // 正しくは \`\`\`diagram:flow のようにエスケープされている。
       if (line.startsWith(BT + BT + BT)) {
