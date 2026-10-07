@@ -12,14 +12,16 @@ import { k4Control } from './k4-control';
 import { k4Boiler } from './k4-boiler';
 import { k4Engine } from './k4-engine';
 import { k4Hx } from './k4-hx';
+import { k4Refrig } from './k4-refrig';
+import { k4Process } from './k4-process';
 
 /**
  * 教本の全節。**章ごとにファイルを分けて、ここで束ねる**（1 章 1 ファイル。並行して書かせるため）。
  *
- * いまは入門編と課目Ⅱの 4 章（2026 年 10 月 2 日）、課目Ⅲの 3 章と課目Ⅳの 5 章（10 月 4 日）。残りの章は書いたらここへ足す。
+ * いまは入門編と課目Ⅱの 4 章（2026 年 10 月 2 日）、課目Ⅲの 3 章と課目Ⅳの 7 章（10 月 4〜7 日）。残りの章は書いたらここへ足す。
  * 章は `src/data/categories.ts` の `CATEGORIES`（受験案内の出題分野そのまま）。
  */
-export const SECTIONS: TextbookSection[] = [...intro, ...k2Gas, ...k2Vapor, ...k2Fluid, ...k2Heat, ...k3Fuel, ...k3Burn, ...k3Calc, ...k4Measure, ...k4Control, ...k4Boiler, ...k4Engine, ...k4Hx];
+export const SECTIONS: TextbookSection[] = [...intro, ...k2Gas, ...k2Vapor, ...k2Fluid, ...k2Heat, ...k3Fuel, ...k3Burn, ...k3Calc, ...k4Measure, ...k4Control, ...k4Boiler, ...k4Engine, ...k4Hx, ...k4Refrig, ...k4Process];
 
 export const sectionById = (id: string): TextbookSection | undefined => SECTIONS.find((s) => s.id === id);
 
