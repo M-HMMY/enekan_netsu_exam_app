@@ -1,5 +1,9 @@
 import type { TextbookSection } from '../../types';
 import { intro } from './intro';
+import { k1Law } from './k1-law';
+import { k1Policy } from './k1-policy';
+import { k1Tech } from './k1-tech';
+import { k1Elec } from './k1-elec';
 import { k2Gas } from './k2-gas';
 import { k2Vapor } from './k2-vapor';
 import { k2Fluid } from './k2-fluid';
@@ -21,7 +25,7 @@ import { k4Process } from './k4-process';
  * いまは入門編と課目Ⅱの 4 章（2026 年 10 月 2 日）、課目Ⅲの 3 章と課目Ⅳの 7 章（10 月 4〜7 日）。残りの章は書いたらここへ足す。
  * 章は `src/data/categories.ts` の `CATEGORIES`（受験案内の出題分野そのまま）。
  */
-export const SECTIONS: TextbookSection[] = [...intro, ...k2Gas, ...k2Vapor, ...k2Fluid, ...k2Heat, ...k3Fuel, ...k3Burn, ...k3Calc, ...k4Measure, ...k4Control, ...k4Boiler, ...k4Engine, ...k4Hx, ...k4Refrig, ...k4Process];
+export const SECTIONS: TextbookSection[] = [...intro, ...k1Law, ...k1Policy, ...k1Tech, ...k1Elec, ...k2Gas, ...k2Vapor, ...k2Fluid, ...k2Heat, ...k3Fuel, ...k3Burn, ...k3Calc, ...k4Measure, ...k4Control, ...k4Boiler, ...k4Engine, ...k4Hx, ...k4Refrig, ...k4Process];
 
 export const sectionById = (id: string): TextbookSection | undefined => SECTIONS.find((s) => s.id === id);
 

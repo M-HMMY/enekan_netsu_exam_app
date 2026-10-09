@@ -1292,13 +1292,25 @@ for (const s2 of SECTIONS) {
   const known = new Set(pairs(ledger).keys());
   // **見逃してよいもの。**理由を必ず書くこと。
   // （高圧ガス甲種版の 3 件は、この試験に無い問題のものなので外した。）
-  const allowed = new Set<string>([]);
-  // **台帳が受け持つのは、法（`k1-law`）と、年版の資料の数値を問う情勢（`k1-policy`）。**
+  const allowed = new Set<string>([
+    // lw-3・lw-13 の例題で、自前に置いた事業者の使用量と、そこから計算した値（法令の数値ではない）。
+    // 2026 年 10 月 9 日。例題の値を変えたら、ここも直すこと。
+    ...['40 kL', '150 t', '2000 GJ', '8000 t', '2500 t', '1200 t', '400 kL', '20000 GJ', '6000 GJ'],
+    ...['27877.6 kL', '13824 GJ', '356.7 kL', '3033.7 kL', '24347.7 kL'],
+  ]);
+  // **台帳が受け持つのは、法（`k1-law`）と、年版の資料の数値を問う情勢の節（`ea-6`・`ea-9`）。**
   // 工学の数値（課目Ⅰ問題 3 と課目Ⅱ〜Ⅳ）は台帳の担当ではない。
   // ★ 高圧ガス甲種版の判定（`/^(law|ho)-/`）のままだと、この試験の章 ID にどれも当たらず、検査が黙って効いていなかった。
+  // ★ `k1-policy` を章ごと照らすと、SI 単位・エネルギーの貯蔵などの**工学の例題の値まで**注意になった
+  //   （2026 年 10 月 9 日に 40 件あまり）。年版に縛られる数値を書くのは `ea-6`（白書）と `ea-9`（基本計画）なので、
+  //   情勢の章はこの 2 節だけを照らす。条約などの年（`ea-7`）は台帳ではなくレビューで確かめる。
   const LEDGER_CATEGORIES = new Set(['k1-law', 'k1-policy']);
+  const LEDGER_POLICY_SECTIONS = new Set(['ea-6', 'ea-9']);
+  const ledgerTarget = (categoryId: string, sectionId: string | undefined): boolean =>
+    LEDGER_CATEGORIES.has(categoryId) &&
+    (categoryId !== 'k1-policy' || (sectionId !== undefined && LEDGER_POLICY_SECTIONS.has(sectionId)));
   for (const q of QUESTIONS) {
-    if (!LEDGER_CATEGORIES.has(q.categoryId)) continue;
+    if (!ledgerTarget(q.categoryId, q.sectionId)) continue;
     for (const [key, shown] of pairs(q.question)) {
       if (known.has(key) || allowed.has(key)) continue;
       warn(
@@ -1311,7 +1323,7 @@ for (const s2 of SECTIONS) {
   // 2 巡目でいちばん多く出た型なので、両方を同じ物差しで測る。
   // 節は章で判定する（`ea-` は情勢の章と管理技術の章で接頭辞を共有するので、節 ID では分けられない）。
   for (const sec of SECTIONS) {
-    if (!LEDGER_CATEGORIES.has(sec.categoryId)) continue;
+    if (!ledgerTarget(sec.categoryId, sec.id)) continue;
     for (const [key, shown] of pairs(sec.body)) {
       if (known.has(key) || allowed.has(key)) continue;
       warn(
