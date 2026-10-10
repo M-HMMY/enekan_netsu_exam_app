@@ -1,4 +1,18 @@
 import type { JSX } from 'react';
+import { MathInline } from '../lib/math';
+
+/**
+ * 選択肢の文字。`$...$` の部分だけを行内数式として描く。
+ *
+ * 本番の解答群には式が並ぶ空欄がある（課目Ⅱ・Ⅲ・Ⅳ。`docs/public-questions.md` §2）。
+ * 選択肢を Markdown 全体で描くと `**` や行頭の記号まで解釈されるので、数式だけに絞る。
+ * `scripts/check.ts` は選択肢の数式の命令も検査している。
+ */
+function ChoiceText({ text }: { text: string }): JSX.Element {
+  const parts = text.split(/\$([^$]+)\$/);
+  if (parts.length === 1) return <>{text}</>;
+  return <>{parts.map((p, i) => (i % 2 === 1 ? <MathInline key={i} expr={p} /> : p))}</>;
+}
 
 /**
  * 解答群の記号。本番と同じくア・イ・ウ…と振る。
@@ -55,7 +69,9 @@ export function ChoiceList({
               aria-pressed={multi ? undefined : picked.has(i)}
             >
               <span className="choice-label">{CHOICE_LABELS[i]}</span>
-              <span className="choice-text">{c}</span>
+              <span className="choice-text">
+                <ChoiceText text={c} />
+              </span>
             </button>
           </li>
         );
