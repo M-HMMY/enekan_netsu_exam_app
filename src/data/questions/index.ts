@@ -1,14 +1,18 @@
 import type { Question } from '../../types';
+import { k2Gas } from './k2-gas';
+import { k2Vapor } from './k2-vapor';
+import { k2Fluid } from './k2-fluid';
+import { k2Heat } from './k2-heat';
 
 /**
- * 確認問題。**まだ 1 問もありません**（立ち上げたところ）。
+ * 確認問題。課目Ⅱの 4 章から書いている（2026 年 10 月 10 日〜）。
  *
  * **1 問 ＝ 本番の空欄 1 つぶん**（CLAUDE.md「確認問題の形」、2026 年 9 月 29 日に決定）。
  * 選択肢は空欄ごとに 2〜20 個で、5 に揃えない。大問の設定は `passages.ts` に書いて `passage` で指す。
  *
  * 章ごとにファイルを分けて、ここで束ねる（1 章 1 ファイル。並行して書かせるため）。
  */
-export const QUESTIONS: Question[] = [];
+export const QUESTIONS: Question[] = [...k2Gas, ...k2Vapor, ...k2Fluid, ...k2Heat];
 
 export const questionById = (id: string): Question | undefined => QUESTIONS.find((q) => q.id === id);
 

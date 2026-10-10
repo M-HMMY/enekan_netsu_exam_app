@@ -241,6 +241,33 @@ for (const root of ROOTS) {
 
       bodyOpen.lastIndex = end;
     }
+
+    // ★ 確認問題は本文がテンプレートリテラルではなく、**引用符の文字列**（'…'）に入っている（2026 年 10 月 10 日）。
+    //   上の検査は `body: ` の中しか見ないので、問題文・選択肢・解説・前置きの `\,` が 1 本でも素通りした
+    //   （k2-fluid-1 の解説に `m\,u_2` が入り、画面には「m,u_2」と出るところだった）。
+    //   引用符の文字列でも TypeScript が 1 本を食うのは同じ。`\n` 1 本だけが正しい書き方。
+    if (file.replace(/\\/g, '/').includes('src/data/questions/')) {
+      const strRe = new RegExp("'((?:[^'" + BS + BS + '\\n]|' + BS + BS + "[\\s\\S])*)'", 'g');
+      const runRe = new RegExp('(' + BS + BS + '+)([a-zA-Z,;:!])', 'g');
+      let s;
+      outer: while ((s = strRe.exec(text)) !== null) {
+        let r;
+        runRe.lastIndex = 0;
+        while ((r = runRe.exec(s[1])) !== null) {
+          if (r[1].length % 2 === 0) continue;
+          if (r[1].length === 1 && r[2] === 'n') continue; // 改行。正しい書き方
+          problems.push({
+            file,
+            line: text.slice(0, s.index).split('\n').length,
+            text: s[1].slice(Math.max(0, r.index - 12), r.index + r[0].length + 4),
+            why:
+              '文字列の中のバックスラッシュが ' + r[1].length + ' 本 + ' + r[2] + ' です。TypeScript が食うので ' +
+              BS + BS + r[2] + ' と 2 本で書いてください',
+          });
+          break outer; // 1 ファイル 1 件でよい（直せば次が見える）
+        }
+      }
+    }
   }
 }
 

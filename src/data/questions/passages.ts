@@ -1,9 +1,13 @@
 import type { Passage } from '../../types';
+import { k2GasPassages } from './k2-gas';
+import { k2VaporPassages } from './k2-vapor';
+import { k2FluidPassages } from './k2-fluid';
+import { k2HeatPassages } from './k2-heat';
 
 /**
  * 大問の前置き。確認問題が `passage: 'id'` で指す。
  *
- * **まだ 1 つもありません**（確認問題が 0 問のため）。
+ * 前置きは章の問題ファイルに書き、ここで束ねる（1 章 1 ファイル。並行して書かせるため）。
  *
  * 本番の大問は、1 つの設定に空欄が十数個ぶら下がる（`docs/public-questions.md` §2）。
  * その設定をここに 1 回だけ書く。**前の空欄の答えは前置きに書かず、問題文の側で与える**
@@ -11,6 +15,6 @@ import type { Passage } from '../../types';
  *
  * **公開問題の設定を写さないこと。**燃料の組成も、サイクルの温度も、事業者の事例も自前で作る。
  */
-export const PASSAGES: Passage[] = [];
+export const PASSAGES: Passage[] = [...k2GasPassages, ...k2VaporPassages, ...k2FluidPassages, ...k2HeatPassages];
 
 export const passageById = (id: string): Passage | undefined => PASSAGES.find((p) => p.id === id);
