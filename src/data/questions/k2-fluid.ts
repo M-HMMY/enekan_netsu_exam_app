@@ -47,15 +47,15 @@ export const k2Fluid: Question[] = [
     passage: 'k2-fluid-p1',
     question: '差圧が $\\Delta p=24.0\\ \\mathrm{kPa}$、流出係数が $C=0.97$ のとき、流量 $Q$ に最も近い値はどれか。',
     choices: [
-      '$2.28\\times10^{-2}\\ \\mathrm{m^3/s}$',
       '$3.01\\times10^{-2}\\ \\mathrm{m^3/s}$',
       '$3.22\\times10^{-2}\\ \\mathrm{m^3/s}$',
       '$3.32\\times10^{-2}\\ \\mathrm{m^3/s}$',
       '$3.76\\times10^{-2}\\ \\mathrm{m^3/s}$',
+      '$4.56\\times10^{-2}\\ \\mathrm{m^3/s}$',
     ],
-    answer: 2,
+    answer: 1,
     explanation:
-      '$Q=CA_2\\sqrt{2\\Delta p/(\\rho(1-m^2))}$ に入れます。\n\n1. 面積比：$m=(d/D)^2=(0.075/0.125)^2=0.36$、$1-m^2=1-0.1296=0.8704$\n2. のど部の理論流速：$u_2=\\sqrt{2\\times24.0\\times10^3/(975\\times0.8704)}=\\sqrt{56.56}\\approx7.521\\ \\mathrm{m/s}$\n3. のど部の面積：$A_2=(\\pi/4)\\times0.075^2\\approx4.418\\times10^{-3}\\ \\mathrm{m^2}$\n4. 流量：$Q=0.97\\times4.418\\times10^{-3}\\times7.521\\approx3.22\\times10^{-2}\\ \\mathrm{m^3/s}$\n\n誤答の出どころ：\n\n- $3.01\\times10^{-2}$ は接近流速の補正 $1-m^2$ を落とした値（$\\sqrt{0.8704}$ ぶん小さい）\n- $3.76\\times10^{-2}$ は内径の比 $0.6$ をそのまま $m$ に入れ、$1-m^2=0.64$ とした値\n- $2.28\\times10^{-2}$ は $2\\Delta p$ の 2 を落とした値\n- $3.32\\times10^{-2}$ は流出係数 $C$ を掛け忘れた理論流量。ベンチュリ管は $C$ が 1 に近いので差は小さいものの、掛け忘れればずれます',
+      '$Q=CA_2\\sqrt{2\\Delta p/(\\rho(1-m^2))}$ に入れます。\n\n1. 面積比：$m=(d/D)^2=(0.075/0.125)^2=0.36$、$1-m^2=1-0.1296=0.8704$\n2. のど部の理論流速：$u_2=\\sqrt{2\\times24.0\\times10^3/(975\\times0.8704)}=\\sqrt{56.56}\\approx7.521\\ \\mathrm{m/s}$\n3. のど部の面積：$A_2=(\\pi/4)\\times0.075^2\\approx4.418\\times10^{-3}\\ \\mathrm{m^2}$\n4. 流量：$Q=0.97\\times4.418\\times10^{-3}\\times7.521\\approx3.22\\times10^{-2}\\ \\mathrm{m^3/s}$\n\n誤答の出どころ：\n\n- $3.01\\times10^{-2}$ は接近流速の補正 $1-m^2$ を落とした値（$\\sqrt{0.8704}$ ぶん小さい）\n- $3.76\\times10^{-2}$ は内径の比 $0.6$ をそのまま $m$ に入れ、$1-m^2=0.64$ とした値（$1-m$ と 2 乗を落としても同じ値）\n- $4.56\\times10^{-2}$ は、平方根の中の $2\\Delta p$ の 2 を、根号の外へそのまま出した値（正しい値の $\\sqrt{2}$ 倍）\n- $3.32\\times10^{-2}$ は流出係数 $C$ を掛け忘れた理論流量。ベンチュリ管は $C$ が 1 に近いので差は小さいものの、掛け忘れればずれます',
     level: 2,
   },
   {
@@ -123,10 +123,10 @@ export const k2Fluid: Question[] = [
     sectionId: 'tf-22',
     passage: 'k2-fluid-p2',
     question: '$d=0.080\\ \\mathrm{m}$、$L=120\\ \\mathrm{m}$、$u=1.5\\ \\mathrm{m/s}$、$\\lambda=0.028$、水の密度 $\\rho=980\\ \\mathrm{kg/m^3}$ とする。この直管の圧力損失 $\\Delta p$ に最も近い値はどれか。',
-    choices: ['$11.6\\ \\mathrm{kPa}$', '$30.9\\ \\mathrm{kPa}$', '$46.3\\ \\mathrm{kPa}$', '$92.6\\ \\mathrm{kPa}$', '$454\\ \\mathrm{kPa}$'],
-    answer: 2,
+    choices: ['$4.63\\ \\mathrm{kPa}$', '$11.6\\ \\mathrm{kPa}$', '$30.9\\ \\mathrm{kPa}$', '$46.3\\ \\mathrm{kPa}$', '$92.6\\ \\mathrm{kPa}$'],
+    answer: 3,
     explanation:
-      '$\\Delta p=\\lambda(L/d)(\\rho u^2/2)$ に入れます。\n\n1. $L/d=120/0.080=1\\ 500$\n2. 動圧：$\\rho u^2/2=980\\times1.5^2/2=1\\ 102.5\\ \\mathrm{Pa}$\n3. $\\Delta p=0.028\\times1\\ 500\\times1\\ 102.5\\approx4.63\\times10^4\\ \\mathrm{Pa}=46.3\\ \\mathrm{kPa}$\n\n損失ヘッドで見ると $h_f=\\Delta p/(\\rho g)\\approx4.82\\ \\mathrm{m}$ です。\n\n誤答の出どころ：$92.6$ は動圧の $1/2$ を落とした値、$30.9$ は $u^2$ の代わりに $u$ を入れた値、$11.6$ は $\\lambda$ をファニングの $f\\ (=\\lambda/4)$ と取り違えた値、$454$ は静水圧の $\\rho gh$ と混同して動圧にさらに $g=9.8$ を掛けた値です。動圧 $\\rho u^2/2$ はそれだけで圧力の単位（Pa）なので、$g$ は要りません。',
+      '$\\Delta p=\\lambda(L/d)(\\rho u^2/2)$ に入れます。\n\n1. $L/d=120/0.080=1\\ 500$\n2. 動圧：$\\rho u^2/2=980\\times1.5^2/2=1\\ 102.5\\ \\mathrm{Pa}$\n3. $\\Delta p=0.028\\times1\\ 500\\times1\\ 102.5\\approx4.63\\times10^4\\ \\mathrm{Pa}=46.3\\ \\mathrm{kPa}$\n\n損失ヘッドで見ると $h_f=\\Delta p/(\\rho g)\\approx4.82\\ \\mathrm{m}$ です。\n\n誤答の出どころ：$92.6$ は動圧の $1/2$ を落とした値、$30.9$ は $u^2$ の代わりに $u$ を入れた値、$11.6$ は $\\lambda$ をファニングの $f\\ (=\\lambda/4)$ と取り違えた値、$4.63$ は $4.63\\times10^4\\ \\mathrm{Pa}$ を kPa に直すときに桁を 1 つ取り違えた値です（$1\\ \\mathrm{kPa}=10^3\\ \\mathrm{Pa}$ なので、正しくは $46.3\\ \\mathrm{kPa}$）。',
     level: 1,
   },
   {
@@ -172,10 +172,10 @@ export const k2Fluid: Question[] = [
     categoryId: 'k2-fluid',
     sectionId: 'tf-24',
     question: '流量 $2.4\\ \\mathrm{m^3/min}$、全揚程 $25\\ \\mathrm{m}$ で水を送る遠心ポンプがある。水の密度を $1.00\\times10^3\\ \\mathrm{kg/m^3}$、$g=9.8\\ \\mathrm{m/s^2}$、ポンプ効率を $0.70$ とするとき、軸動力に最も近い値はどれか。',
-    choices: ['$6.86\\ \\mathrm{kW}$', '$9.80\\ \\mathrm{kW}$', '$14.0\\ \\mathrm{kW}$', '$20.0\\ \\mathrm{kW}$', '$840\\ \\mathrm{kW}$'],
-    answer: 2,
+    choices: ['$4.80\\ \\mathrm{kW}$', '$6.86\\ \\mathrm{kW}$', '$9.80\\ \\mathrm{kW}$', '$14.0\\ \\mathrm{kW}$', '$20.0\\ \\mathrm{kW}$'],
+    answer: 3,
     explanation:
-      '軸動力は $P=\\rho gQH/\\eta$ です。流量を $\\mathrm{m^3/s}$ に直すと $Q=2.4/60=0.040\\ \\mathrm{m^3/s}$。\n\n1. 水動力：$\\rho gQH=1.00\\times10^3\\times9.8\\times0.040\\times25=9\\ 800\\ \\mathrm{W}$\n2. 軸動力：$9\\ 800/0.70=1.40\\times10^4\\ \\mathrm{W}=14.0\\ \\mathrm{kW}$\n\n誤答の出どころ：$9.80$ は水動力のまま（効率で割っていない）、$6.86$ は効率を掛けた値（軸動力は水動力より大きいはず）、$20.0$ は効率で 2 回割った値、$840$ は流量を毎分のまま入れた値です。',
+      '軸動力は $P=\\rho gQH/\\eta$ です。流量を $\\mathrm{m^3/s}$ に直すと $Q=2.4/60=0.040\\ \\mathrm{m^3/s}$。\n\n1. 水動力：$\\rho gQH=1.00\\times10^3\\times9.8\\times0.040\\times25=9\\ 800\\ \\mathrm{W}$\n2. 軸動力：$9\\ 800/0.70=1.40\\times10^4\\ \\mathrm{W}=14.0\\ \\mathrm{kW}$\n\n誤答の出どころ：$9.80$ は水動力のまま（効率で割っていない）、$6.86$ は効率を掛けた値（軸動力は水動力より大きいはず）、$20.0$ は効率で 2 回割った値、$4.80$ は逆に効率を 2 回掛けた値です。',
     level: 1,
   },
   {
