@@ -9,6 +9,9 @@ import { k3CalcPassages } from './k3-calc';
 import { k4MeasurePassages } from './k4-measure';
 import { k4ControlPassages } from './k4-control';
 import { k4BoilerPassages } from './k4-boiler';
+import { k4EnginePassages } from './k4-engine';
+import { k4HxPassages } from './k4-hx';
+import { k4RefrigPassages } from './k4-refrig';
 
 /**
  * 大問の前置き。確認問題が `passage: 'id'` で指す。
@@ -21,6 +24,6 @@ import { k4BoilerPassages } from './k4-boiler';
  *
  * **公開問題の設定を写さないこと。**燃料の組成も、サイクルの温度も、事業者の事例も自前で作る。
  */
-export const PASSAGES: Passage[] = [...k2GasPassages, ...k2VaporPassages, ...k2FluidPassages, ...k2HeatPassages, ...k3FuelPassages, ...k3BurnPassages, ...k3CalcPassages, ...k4MeasurePassages, ...k4ControlPassages, ...k4BoilerPassages];
+export const PASSAGES: Passage[] = [...k2GasPassages, ...k2VaporPassages, ...k2FluidPassages, ...k2HeatPassages, ...k3FuelPassages, ...k3BurnPassages, ...k3CalcPassages, ...k4MeasurePassages, ...k4ControlPassages, ...k4BoilerPassages, ...k4EnginePassages, ...k4HxPassages, ...k4RefrigPassages];
 
 export const passageById = (id: string): Passage | undefined => PASSAGES.find((p) => p.id === id);

@@ -9,6 +9,9 @@ import { k3Calc } from './k3-calc';
 import { k4Measure } from './k4-measure';
 import { k4Control } from './k4-control';
 import { k4Boiler } from './k4-boiler';
+import { k4Engine } from './k4-engine';
+import { k4Hx } from './k4-hx';
+import { k4Refrig } from './k4-refrig';
 
 /**
  * 確認問題。課目Ⅱの 4 章から書いている（2026 年 10 月 10 日〜）。
@@ -18,7 +21,7 @@ import { k4Boiler } from './k4-boiler';
  *
  * 章ごとにファイルを分けて、ここで束ねる（1 章 1 ファイル。並行して書かせるため）。
  */
-export const QUESTIONS: Question[] = [...k2Gas, ...k2Vapor, ...k2Fluid, ...k2Heat, ...k3Fuel, ...k3Burn, ...k3Calc, ...k4Measure, ...k4Control, ...k4Boiler];
+export const QUESTIONS: Question[] = [...k2Gas, ...k2Vapor, ...k2Fluid, ...k2Heat, ...k3Fuel, ...k3Burn, ...k3Calc, ...k4Measure, ...k4Control, ...k4Boiler, ...k4Engine, ...k4Hx, ...k4Refrig];
 
 export const questionById = (id: string): Question | undefined => QUESTIONS.find((q) => q.id === id);
 
