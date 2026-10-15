@@ -1,4 +1,8 @@
 import type { Passage } from '../../types';
+import { k1LawPassages } from './k1-law';
+import { k1PolicyPassages } from './k1-policy';
+import { k1TechPassages } from './k1-tech';
+import { k1ElecPassages } from './k1-elec';
 import { k2GasPassages } from './k2-gas';
 import { k2VaporPassages } from './k2-vapor';
 import { k2FluidPassages } from './k2-fluid';
@@ -12,6 +16,7 @@ import { k4BoilerPassages } from './k4-boiler';
 import { k4EnginePassages } from './k4-engine';
 import { k4HxPassages } from './k4-hx';
 import { k4RefrigPassages } from './k4-refrig';
+import { k4ProcessPassages } from './k4-process';
 
 /**
  * 大問の前置き。確認問題が `passage: 'id'` で指す。
@@ -24,6 +29,6 @@ import { k4RefrigPassages } from './k4-refrig';
  *
  * **公開問題の設定を写さないこと。**燃料の組成も、サイクルの温度も、事業者の事例も自前で作る。
  */
-export const PASSAGES: Passage[] = [...k2GasPassages, ...k2VaporPassages, ...k2FluidPassages, ...k2HeatPassages, ...k3FuelPassages, ...k3BurnPassages, ...k3CalcPassages, ...k4MeasurePassages, ...k4ControlPassages, ...k4BoilerPassages, ...k4EnginePassages, ...k4HxPassages, ...k4RefrigPassages];
+export const PASSAGES: Passage[] = [...k1LawPassages, ...k1PolicyPassages, ...k1TechPassages, ...k1ElecPassages, ...k2GasPassages, ...k2VaporPassages, ...k2FluidPassages, ...k2HeatPassages, ...k3FuelPassages, ...k3BurnPassages, ...k3CalcPassages, ...k4MeasurePassages, ...k4ControlPassages, ...k4BoilerPassages, ...k4EnginePassages, ...k4HxPassages, ...k4RefrigPassages, ...k4ProcessPassages];
 
 export const passageById = (id: string): Passage | undefined => PASSAGES.find((p) => p.id === id);

@@ -1,4 +1,8 @@
 import type { Question } from '../../types';
+import { k1Law } from './k1-law';
+import { k1Policy } from './k1-policy';
+import { k1Tech } from './k1-tech';
+import { k1Elec } from './k1-elec';
 import { k2Gas } from './k2-gas';
 import { k2Vapor } from './k2-vapor';
 import { k2Fluid } from './k2-fluid';
@@ -12,6 +16,7 @@ import { k4Boiler } from './k4-boiler';
 import { k4Engine } from './k4-engine';
 import { k4Hx } from './k4-hx';
 import { k4Refrig } from './k4-refrig';
+import { k4Process } from './k4-process';
 
 /**
  * 確認問題。課目Ⅱの 4 章から書いている（2026 年 10 月 10 日〜）。
@@ -21,7 +26,7 @@ import { k4Refrig } from './k4-refrig';
  *
  * 章ごとにファイルを分けて、ここで束ねる（1 章 1 ファイル。並行して書かせるため）。
  */
-export const QUESTIONS: Question[] = [...k2Gas, ...k2Vapor, ...k2Fluid, ...k2Heat, ...k3Fuel, ...k3Burn, ...k3Calc, ...k4Measure, ...k4Control, ...k4Boiler, ...k4Engine, ...k4Hx, ...k4Refrig];
+export const QUESTIONS: Question[] = [...k1Law, ...k1Policy, ...k1Tech, ...k1Elec, ...k2Gas, ...k2Vapor, ...k2Fluid, ...k2Heat, ...k3Fuel, ...k3Burn, ...k3Calc, ...k4Measure, ...k4Control, ...k4Boiler, ...k4Engine, ...k4Hx, ...k4Refrig, ...k4Process];
 
 export const questionById = (id: string): Question | undefined => QUESTIONS.find((q) => q.id === id);
 
