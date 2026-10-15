@@ -172,10 +172,10 @@ export const k2Fluid: Question[] = [
     categoryId: 'k2-fluid',
     sectionId: 'tf-24',
     question: '流量 $2.4\\ \\mathrm{m^3/min}$、全揚程 $25\\ \\mathrm{m}$ で水を送る遠心ポンプがある。水の密度を $1.00\\times10^3\\ \\mathrm{kg/m^3}$、$g=9.8\\ \\mathrm{m/s^2}$、ポンプ効率を $0.70$ とするとき、軸動力に最も近い値はどれか。',
-    choices: ['$4.80\\ \\mathrm{kW}$', '$6.86\\ \\mathrm{kW}$', '$9.80\\ \\mathrm{kW}$', '$14.0\\ \\mathrm{kW}$', '$20.0\\ \\mathrm{kW}$'],
-    answer: 3,
+    choices: ['$1.43\\ \\mathrm{kW}$', '$4.80\\ \\mathrm{kW}$', '$6.86\\ \\mathrm{kW}$', '$9.80\\ \\mathrm{kW}$', '$14.0\\ \\mathrm{kW}$'],
+    answer: 4,
     explanation:
-      '軸動力は $P=\\rho gQH/\\eta$ です。流量を $\\mathrm{m^3/s}$ に直すと $Q=2.4/60=0.040\\ \\mathrm{m^3/s}$。\n\n1. 水動力：$\\rho gQH=1.00\\times10^3\\times9.8\\times0.040\\times25=9\\ 800\\ \\mathrm{W}$\n2. 軸動力：$9\\ 800/0.70=1.40\\times10^4\\ \\mathrm{W}=14.0\\ \\mathrm{kW}$\n\n誤答の出どころ：$9.80$ は水動力のまま（効率で割っていない）、$6.86$ は効率を掛けた値（軸動力は水動力より大きいはず）、$20.0$ は効率で 2 回割った値、$4.80$ は逆に効率を 2 回掛けた値です。',
+      '軸動力は $P=\\rho gQH/\\eta$ です。流量を $\\mathrm{m^3/s}$ に直すと $Q=2.4/60=0.040\\ \\mathrm{m^3/s}$。\n\n1. 水動力：$\\rho gQH=1.00\\times10^3\\times9.8\\times0.040\\times25=9\\ 800\\ \\mathrm{W}$\n2. 軸動力：$9\\ 800/0.70=1.40\\times10^4\\ \\mathrm{W}=14.0\\ \\mathrm{kW}$\n\n誤答の出どころ：$9.80$ は水動力のまま（効率で割っていない）、$6.86$ は効率を掛けた値（軸動力は水動力より大きいはず）、$1.43$ は重力加速度 $g$ を掛け忘れた値（$\\rho QH/\\eta$ のままでは単位が W になりません）、$4.80$ は逆に効率を 2 回掛けた値です。',
     level: 1,
   },
   {
