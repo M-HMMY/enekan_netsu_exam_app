@@ -7,7 +7,7 @@
  *
  * **★ この試験は計算が多い。**課目Ⅱ（熱力学・流体・伝熱）と課目Ⅲ（燃焼計算）は
  * 大問の中で値を出させ、課目Ⅰ問題 3 と課目Ⅳのボイラにも数値の空欄が並ぶ。
- * **18 種類あります**（2026 年 10 月 16 日）。内訳は下の `DRILLS` の説明。
+ * **19 種類あります**（2026 年 10 月 16 日）。内訳は下の `DRILLS` の説明。
  *
  * **★ 電卓は四則と √ まで**（関数電卓は禁止。受験案内 §7）。
  * **指数・対数の値が要るものは、問題文で値を与えている**（本番は表を付ける）。
@@ -135,21 +135,36 @@ export function buildNumeric(
     return got;
   };
   const scaled = (f: number): number => base + (correct - base) * f;
-  const lower = shuffle(mistakes.filter((v) => v < correct && usable(v, chosen)));
-  const upper = shuffle(mistakes.filter((v) => v > correct && usable(v, chosen)));
+  // 候補どうしが近すぎるものは、片方だけを数える（そうしないと k を決めるときに数を多く見積もり、
+  // 片側が足りずに反対側から埋めることになって、正解の位置が偏る）
+  const distinct = (vals: number[]): number[] => {
+    const acc: { v: number; s: string }[] = [];
+    for (const v of vals) if (usable(v, [...chosen, ...acc])) acc.push({ v, s: fmt(v) });
+    return acc.map((a) => a.v);
+  };
+  const lower = distinct(shuffle(mistakes.filter((v) => v < correct)));
+  const upper = distinct(shuffle(mistakes.filter((v) => v > correct)));
   const lowF = shuffle([0.5, 0.6, 0.7, 0.8, 0.4, 0.87, 0.3]).map(scaled);
   const upF = shuffle([1.25, 1.4, 1.5, 1.8, 2, 2.5, 1.15, 3]).map(scaled);
   // 埋め草は 1 問に 2 つまで。だから小さい側の誤答が L 個なら、k は L ＋ 2 まで
   const FILL = 2;
+  let fills = 0;
+  const takeFill = (cands: number[], need: number): void => {
+    fills += take(cands, Math.min(need, FILL - fills));
+  };
   const kMin = Math.max(0, 4 - (upper.length + FILL));
   const kMax = Math.min(4, lower.length + FILL);
   const k = rnd(kMin, Math.max(kMin, kMax));
   const gotLow = take(lower, k);
-  take(lowF, k - gotLow);
+  takeFill(lowF, k - gotLow);
   const gotUp = take(upper, 4 - k);
-  take(upF, 4 - k - gotUp);
-  // 近すぎて捨てた分などで、まだ足りなければ、どちら側からでも
-  take([...lower, ...upper, ...lowF, ...upF], 5 - chosen.length);
+  takeFill(upF, 4 - k - gotUp);
+  // 近すぎて捨てた分などで、まだ足りなければ、まず誤答の候補をどちら側からでも。
+  // 次に埋め草を上限の 2 つまで（以前はここで上限を越えて 3 つ目が入っていた）
+  take([...lower, ...upper], 5 - chosen.length);
+  takeFill([...lowF, ...upF], 5 - chosen.length);
+  // それでも 5 つにならないときだけ、上限を越えて埋める（5 択を崩さないための最後の手段）
+  take([...lowF, ...upF], 5 - chosen.length);
   chosen.sort((a, b) => a.v - b.v);
   return { choices: chosen.map((c) => c.s), answer: chosen.findIndex((c) => c.s === label) };
 }
@@ -185,9 +200,9 @@ function chem(x: number, y: number): string {
 const FLUE_FUELS = [
   { name: 'メタン', unit: 'm³N', o0: 2, co2: 1, h2o: 2, hl: 35.8 },
   { name: '体積組成 CH₄ 90 %、C₂H₆ 6 %、C₃H₈ 4 % の混合ガス', unit: 'm³N', o0: 2.21, co2: 1.14, h2o: 2.14, hl: 39.7 },
-  { name: 'プロパン', unit: 'm³N', o0: 5, co2: 3, h2o: 4, hl: 91.3 },
+  { name: 'プロパン', unit: 'm³N', o0: 5, co2: 3, h2o: 4, hl: 91.2 },
   // 重油：質量組成 C 86 %、H 12 %、S 1 %（O₀ ＝ 1.867C ＋ 5.6H ＋ 0.7S）。CO₂ の欄は SO₂ を含めた乾きの燃焼生成物
-  { name: '質量組成 C 86 %、H 12 %、S 1 % の重油', unit: 'kg', o0: 2.28462, co2: 1.61262, h2o: 1.344, hl: 40.6 },
+  { name: '質量組成 C 86 %、H 12 %、S 1 % の重油', unit: 'kg', o0: 2.28462, co2: 1.61262, h2o: 1.344, hl: 41.3 },
 ] as const;
 
 function flueValues(f: (typeof FLUE_FUELS)[number]): { a0: number; g0d: number; g0w: number } {
@@ -198,28 +213,47 @@ function flueValues(f: (typeof FLUE_FUELS)[number]): { a0: number; g0d: number; 
   return { a0, g0d, g0w };
 }
 
-/** 飽和蒸気表（圧力は絶対圧 MPa。h′ と蒸発熱 r は kJ/kg。問題文で与える値） */
+/**
+ * 飽和蒸気表（圧力は絶対圧 MPa。h′ と蒸発熱 r は kJ/kg。問題文で与える値）。
+ * **IAPWS-IF97 の値を小数 1 桁に丸めた**（Python の iapws 1.5.5 で取った。2026 年 10 月 16 日）。
+ * r は h″ − h′ を丸める前の値で出してから丸めた（0.8 MPa は h″ 2768.30 − h′ 721.02 ＝ 2047.28 → 2047.3）。
+ * 確認問題（k2-vapor・k4-boiler）の飽和表と同じ値になるようにしてある
+ */
 const STEAM = {
-  0.4: { hf: 604.7, r: 2133.4 },
-  0.5: { hf: 640.1, r: 2108.0 },
-  0.6: { hf: 670.4, r: 2085.7 },
-  0.7: { hf: 697.0, r: 2065.8 },
-  0.8: { hf: 720.9, r: 2047.4 },
-  0.9: { hf: 742.6, r: 2030.4 },
-  1.0: { hf: 762.5, r: 2014.6 },
+  0.4: { hf: 604.7, r: 2133.3 },
+  0.5: { hf: 640.2, r: 2107.9 },
+  0.6: { hf: 670.5, r: 2085.6 },
+  0.7: { hf: 697.1, r: 2065.6 },
+  0.8: { hf: 721.0, r: 2047.3 },
+  0.9: { hf: 742.7, r: 2030.3 },
+  1.0: { hf: 762.7, r: 2014.4 },
   1.4: { hf: 830.1, r: 1958.8 },
-  1.5: { hf: 844.6, r: 1946.4 },
+  1.5: { hf: 844.7, r: 1946.3 },
 } as const;
+
+/**
+ * 湿り蒸気の加熱のドリルで使う飽和表（絶対圧 MPa、h′ と h″ は kJ/kg）。
+ * IAPWS-IF97 を小数 1 桁に丸めた値（iapws 1.5.5）。確認問題 k2-vapor の 0.8・1.5 MPa は使わない
+ */
+const SAT_HG = [
+  { p: 0.2, hf: 504.7, hg: 2706.2 },
+  { p: 0.3, hf: 561.5, hg: 2724.9 },
+  { p: 0.6, hf: 670.5, hg: 2756.1 },
+  { p: 1.0, hf: 762.7, hg: 2777.1 },
+  { p: 1.2, hf: 798.5, hg: 2783.8 },
+  { p: 2.0, hf: 908.6, hg: 2798.4 },
+] as const;
 type SteamP = keyof typeof STEAM;
 
 /**
- * 計算ドリル。**18 種類**（2026 年 10 月 16 日）。
+ * 計算ドリル。**19 種類**（2026 年 10 月 16 日）。
  *
  * | 課目 | 章 | ドリル |
  * | --- | --- | --- |
  * | Ⅰ | `k1-law` | 原油換算（則 4 条の係数。台帳 §2） |
  * | Ⅰ | `k1-tech` | 力率改善のコンデンサ容量、デマンドの残り時間の上限 |
  * | Ⅱ | `k2-gas` | マイヤーの関係、等温圧縮の仕事、可逆断熱圧縮の温度 |
+ * | Ⅱ | `k2-vapor` | 湿り蒸気を定圧で加熱する熱量 |
  * | Ⅱ | `k2-fluid` | 連続の式、トリチェリ、レイノルズ数、管摩擦損失 |
  * | Ⅱ | `k2-heat` | 熱通過率、対数平均温度差、伝熱管の長さ |
  * | Ⅲ | `k3-fuel` | 生成エンタルピーから発熱量 |
@@ -227,7 +261,7 @@ type SteamP = keyof typeof STEAM;
  * | Ⅳ | `k4-boiler` | 換算蒸発量 |
  *
  * **高圧ガス甲種版から 12 種類を持ってきて**（章 ID・節 ID を付け替え、記号を教本に合わせた）、
- * **この試験に固有のものを 6 種類足した。**高圧ガスの法令（充塡質量・貯蔵所）、
+ * **この試験に固有のものを 7 種類足した。**高圧ガスの法令（充塡質量・貯蔵所）、
  * 化学（分子量・ラウール・反応速度・アレニウス・TNT 換算・爆発下限界）、
  * 材料力学（薄肉胴の応力）は、この試験の出題分野に無いので持ってきていない。
  *
@@ -291,7 +325,7 @@ export const DRILLS: Drill[] = [
           '使用量に数えない（令 2 条 2 項）。**発電に使った A 重油 ' + genOil + ' kL を、1 の燃料ですでに数えている**からで、' +
           genMwh + ' 千 kWh を足すと二重に数えることになる。\n\n' +
           '**3. 買った蒸気は係数を掛ける。**$' + nf(steam, 0) + '\\times1.17=' + nf(gjSteam, 1) + '$ GJ。' +
-          '受け取った熱ではなく、その熱を作るのに使った燃料の熱量で数える（則 4 条 2 項 1 号）。\n\n' +
+          '受け取った熱量に係数 1.17 を乗じた熱量で数える（則 4 条 2 項 1 号）。\n\n' +
           '**4. 買電は 8.64。**電気事業者から買った電気は 3 項 2 号の電気なので、$' + nf(buy, 0) + '\\times8.64=' +
           nf(gjBuy, 1) + '$ GJ。3.60 は、自ら使うため（又は特定の需要家のため）に発電した非化石電気だけである。\n\n' +
           '**5. 足して 0.0258 を掛ける。**合計 ' + nf(gj, 1) + ' GJ。$' + nf(gj, 1) + '\\times0.0258\\approx' + nf(kl, 0) +
@@ -311,7 +345,8 @@ export const DRILLS: Drill[] = [
     sectionId: 'ea-21',
     summary: '有効電力一定で Q_C ＝ P(tanφ₁ − tanφ₂)。tan は √(1 − cos²) ÷ cos で出す',
     generate: () => {
-      const p = pick([60, 80, 120, 150, 200, 250, 400, 500]); // kW
+      // 400 kW・0.8 → 1.0 は令和 7 年度の本番と同じ組になるので、400 は入れない
+      const p = pick([60, 80, 120, 150, 200, 250, 300, 500]); // kW
       const c1 = pick([0.6, 0.65, 0.7, 0.75, 0.8, 0.85]);
       const c2 = pick([0.9, 0.92, 0.95, 0.98, 1.0]);
       const s1 = Math.sqrt(1 - c1 * c1);
@@ -361,7 +396,9 @@ export const DRILLS: Drill[] = [
     sectionId: 'ea-22',
     summary: '時限に使える電力量の枠（目標 × 0.5 h）から使った分を引き、残り時間（h）で割る',
     generate: () => {
-      const d = pick([600, 800, 900, 1000, 1200, 1500, 2000, 2400]); // 目標 kW
+      // 2,000 kW・20 分・700 kWh は令和 7 年度の本番と同じ組になるので、2,000 は入れない
+      // （ほかの年度の 3,600 kW・4,000 kW も入れない）
+      const d = pick([600, 800, 900, 1000, 1200, 1500, 1800, 2400]); // 目標 kW
       const tu = pick([6, 9, 10, 12, 15, 18, 20]); // 経過 分
       const pace = pick([0.75, 0.85, 0.9, 1.05, 1.1, 1.2, 1.25, 1.3]);
       const used = Math.round((d * pace * tu) / 60); // kWh
@@ -412,7 +449,7 @@ export const DRILLS: Drill[] = [
         { name: '窒素', m: 28.0, k: 1.4 },
         { name: '酸素', m: 32.0, k: 1.4 },
         { name: '空気', m: 29.0, k: 1.4 },
-        { name: '二酸化炭素', m: 44.0, k: 1.3 },
+        { name: '水素', m: 2.0, k: 1.41 },
         { name: 'アルゴン', m: 39.9, k: 1.67 },
         { name: 'メタン', m: 16.0, k: 1.31 },
       ]);
@@ -475,6 +512,7 @@ export const DRILLS: Drill[] = [
         (m * gas.r * tk * (t.r - 1)) / 1000, // 圧縮後の圧力が一定とみなす（p₂ΔV）
         (m * gas.r * tk * (1 - 1 / t.r)) / 1000, // 圧縮前の圧力が一定とみなす（p₁ΔV）
         m * gas.r * tk * t.ln, // J のまま kJ と書く
+        (gas.r * tk * t.ln) / 1000, // 質量を掛け忘れる（1 kg あたりの値で止める）
       ]);
       return {
         question:
@@ -546,6 +584,60 @@ export const DRILLS: Drill[] = [
     },
   },
 
+  // ------------------------------------------------------------ 課目Ⅱ 蒸気
+  {
+    id: 'tf-wet-steam-heat',
+    name: '湿り蒸気を定圧で加熱する熱量',
+    categoryId: 'k2-vapor',
+    sectionId: 'tf-13',
+    summary: 'h ＝ h′ ＋ xr、r ＝ h″ − h′。定圧の加熱量は比エンタルピーの差 × 質量。乾き度は r に掛ける',
+    generate: () => {
+      // 飽和表は IAPWS-IF97（SAT_HG）。確認問題 k2-vapor の場面（絞り熱量計・タービン）と数値の組は使わない
+      const sat = pick(SAT_HG);
+      const r = Number((sat.hg - sat.hf).toFixed(1));
+      const m = pick([2, 5, 10, 20, 50]); // kg
+      const x1 = pick([0.7, 0.75, 0.8, 0.85, 0.9]);
+      const x2 = pick([0.92, 0.95, 0.98, 1.0].filter((v) => v - x1 >= 0.05 - 1e-9));
+      const q = (m * (x2 - x1) * r) / 1000; // MJ
+      const dg = q < 1 ? 3 : q < 10 ? 2 : 1;
+      const fmt = (n: number): string => nf(n, dg) + ' MJ';
+      const { choices, answer } = buildNumeric(q, fmt, [
+        (m * (x2 - x1) * sat.hg) / 1000, // h ＝ xh″ として、乾き度を h″ に掛ける
+        (m * x2 * r) / 1000, // 加熱前の乾き度を落とす（全部を蒸発させたように数える）
+        (m * (sat.hf + x2 * r)) / 1000, // 加熱後の比エンタルピーそのものに質量を掛ける
+        ((x2 - x1) * r) / 1000, // 質量を掛け忘れる
+        (m * (x2 - x1) * sat.hf) / 1000, // 蒸発熱の代わりに h′ を使う
+        (m * (1 - x1) * r) / 1000, // 乾き飽和蒸気まで加熱したとする
+        m * (x2 - x1) * r, // kJ のまま MJ と書く
+      ]);
+      const mf = (n: number, digits: number): string => n.toFixed(digits); // 数式用（カンマなし）
+      const x2txt = x2 === 1 ? '乾き飽和蒸気' : '乾き度 ' + nf(x2, 2) + ' の湿り蒸気';
+      return {
+        question:
+          'ピストン付きのシリンダの中に、圧力 ' + nf(sat.p, 1) + ' MPa（絶対圧）、乾き度 ' + nf(x1, 2) + ' の湿り蒸気が ' + m +
+          ' kg ある。圧力を一定に保ったまま加熱して、' + x2txt + 'にした。加えた熱量はおよそいくらか。' +
+          nf(sat.p, 1) + ' MPa の飽和水の比エンタルピー h′ を ' + nf(sat.hf, 1) + ' kJ/kg、乾き飽和蒸気の比エンタルピー h″ を ' +
+          nf(sat.hg, 1) + ' kJ/kg とし、運動エネルギーと位置エネルギーの変化は無視する。',
+        choices,
+        answer,
+        explanation:
+          '**1. 定圧の加熱量は比エンタルピーの差。**閉じた系で圧力一定なら、$Q=\\Delta U+p\\Delta V=\\Delta H$。' +
+          'だから $Q=m(h_{2}-h_{1})$。\n\n' +
+          '**2. 蒸発熱を出す。**$r=h\'\'-h\'=' + mf(sat.hg, 1) + '-' + mf(sat.hf, 1) + '=' + mf(r, 1) + '$ kJ/kg。\n\n' +
+          '**3. 湿り蒸気の比エンタルピー。**湿り蒸気は飽和水と乾き飽和蒸気の混合物なので、$h=h\'+xr$。' +
+          '$h_{1}=' + mf(sat.hf, 1) + '+' + mf(x1, 2) + '\\times' + mf(r, 1) + '\\approx' + mf(sat.hf + x1 * r, 1) + '$、' +
+          '$h_{2}=' + mf(sat.hf, 1) + '+' + mf(x2, 2) + '\\times' + mf(r, 1) + '\\approx' + mf(sat.hf + x2 * r, 1) + '$ kJ/kg。\n\n' +
+          '**4. 差を取って質量を掛ける。**$h\'$ は両方に入っているので消え、$h_{2}-h_{1}=(x_{2}-x_{1})r=' + mf(x2 - x1, 2) + '\\times' +
+          mf(r, 1) + '\\approx' + mf((x2 - x1) * r, 1) + '$ kJ/kg。$Q=' + m + '\\times' + mf((x2 - x1) * r, 1) + '\\approx' +
+          mf(q * 1000, 0) + '$ kJ ＝ **' + fmt(q) + '**。\n\n' +
+          '**乾き度は蒸発熱 $r$ に掛ける。**$h=xh\'\'$ として $h\'\'$ に掛けると ' + fmt((m * (x2 - x1) * sat.hg) / 1000) +
+          ' になる。$x$ は蒸気の質量の割合で、液の分も飽和水の $h\'$ を持っている。\n\n' +
+          '**確かめ**：温度は飽和温度のまま変わらず、加えた熱はすべて残りの液の蒸発に使われる。' +
+          '蒸発した量は $' + m + '\\times' + mf(x2 - x1, 2) + '=' + mf(m * (x2 - x1), 2) + '$ kg で、これに $r$ を掛けた値と一致する。',
+      };
+    },
+  },
+
   // ------------------------------------------------------------ 課目Ⅱ 流体
   {
     id: 'tf-continuity',
@@ -565,7 +657,7 @@ export const DRILLS: Drill[] = [
         u1 / (ratio * ratio), // 比を逆に取る
         u1 * ratio * ratio * ratio, // 3 乗にしてしまう
         u1 * ratio * ratio * (4 / Math.PI), // 面積の 4/π を片側だけに付ける
-        u1 * Math.sqrt(ratio), // 径の比の平方根を掛ける
+        u1 / ratio, // 比を逆に取り、2 乗も忘れる
         u1 * ratio * 2, // 径の比を 2 倍する（2 乗と取り違える）
       ]);
       return {
@@ -635,7 +727,10 @@ export const DRILLS: Drill[] = [
     generate: () => {
       const useNu = pick([true, false]);
       const u = pick([0.3, 0.5, 0.8, 1.0, 1.5, 2.0, 2.5]); // m/s
-      const dm = pick([15, 20, 25, 40, 50, 80, 100]); // mm
+      const dm = pick([15, 20, 25, 40, 50, 80, 100]); // 内径 mm
+      // 管は外径と肉厚で与え、内径は引き算で出させる（外径を使う・肉厚を片側だけ引く、の誤答が正解の定数倍にならない）
+      const wall = pick([1.5, 2, 2.5, 3, 3.5, 4, 5].filter((t) => t / dm >= 0.035 && t / dm <= 0.2)); // 肉厚 mm
+      const dOut = dm + 2 * wall; // 外径 mm
       const d = dm / 1000;
       let re: number;
       let given: string;
@@ -659,7 +754,9 @@ export const DRILLS: Drill[] = [
           re * 1000, // 径を mm のまま
           re / 2, // 半径を使う
           re / 1000, // 10⁻⁶ を 10⁻³ と読む
-          re * 2, // 半径と思って 2 倍する
+          (re * dOut) / dm, // 内径ではなく外径を使う
+          (re * (dOut - wall)) / dm, // 肉厚を片側だけ引く
+          (re * dOut * 1000) / dm, // 外径を使い、しかも mm のまま
         ];
       } else {
         const fl = pick([
@@ -678,7 +775,9 @@ export const DRILLS: Drill[] = [
           re * 1000, // 径を mm のまま
           re / 2, // 半径を使う
           (u * d) / fl.mu, // 密度を掛け忘れる
-          re * 2, // 径と半径を取り違えて 2 倍する
+          (re * dOut) / dm, // 内径ではなく外径を使う
+          (re * (dOut - wall)) / dm, // 肉厚を片側だけ引く
+          (re * dOut * 1000) / dm, // 外径を使い、しかも mm のまま
         ];
       }
       const fmt = (n: number): string => nf(n, 0);
@@ -692,15 +791,18 @@ export const DRILLS: Drill[] = [
       ;
       return {
         question:
-          '内径 ' + dm + ' mm の円管を、' + given + 'が平均流速 ' + nf(u, 1) + ' m/s で満たして流れている。レイノルズ数はおよそいくらか。',
+          '外径 ' + nf(dOut, 0) + ' mm、肉厚 ' + fx(wall, 1) + ' mm の円管の中を、' + given + 'が平均流速 ' + nf(u, 1) +
+          ' m/s で満たして流れている。レイノルズ数はおよそいくらか。',
         choices,
         answer,
         explanation:
-          '**1. 径を m に直す。**' + dm + ' mm ＝ ' + d + ' m。代表長さは**内径**（半径ではない）。\n\n' +
+          '**1. 内径を出して m に直す。**流れが通るのは管の内側なので、代表長さは**内径**（外径でも半径でもない）。' +
+          '肉厚は両側にあるので $' + nf(dOut, 0) + '-2\\times' + fx(wall, 1) + '=' + dm + '$ mm ＝ ' + d + ' m。\n\n' +
           '**2. 代入する。**' + calc + '。\n\n' +
           '**3. 判定する。**一般的な目安（2,300 と 4,000。問題文に基準があればそちら）と並べると、この値は ' + judge + '。\n\n' +
           '**レイノルズ数は無次元。**単位が残ったら組み方を誤っている。動粘度 $\\nu=\\mu/\\rho$ を使うときは、密度をもう一度掛けない。\n\n' +
-          '**径を mm のまま入れると 1000 倍**（' + fmt(re * 1000) + '）になる。',
+          '**径を mm のまま入れると 1000 倍**（' + fmt(re * 1000) + '）、**外径のまま入れると** ' + fmt((re * dOut) / dm) +
+          '、肉厚を片側だけ引くと ' + fmt((re * (dOut - wall)) / dm) + ' になる。',
       };
     },
   },
@@ -731,6 +833,7 @@ export const DRILLS: Drill[] = [
         kpa / 1000, // 径を mm のまま
         dp, // Pa のまま kPa と書く
         kpa * u, // 流速を 3 乗にする（動力の比例と取り違える）
+        kpa + (rho * u * u) / 2 / 1000, // 管の出口で失う速度水頭（動圧 1 つ分）まで足す
       ]);
       return {
         question:
@@ -773,7 +876,6 @@ export const DRILLS: Drill[] = [
         (h1 + h2) / 2, // 熱伝達率の平均
         1 / (1 / h1 + dmm / lam + 1 / h2), // 厚さを mm のまま
         1 / (1 / h1 + 1 / h2), // 壁を落とす
-        1 / (1 / h1 + lam / (dmm / 1000) + 1 / h2), // 壁の抵抗を λ/δ と逆にする
         1 / (1 / h1 + (dmm / 1000) * lam + 1 / h2), // 壁の抵抗を δλ と掛けてしまう
         Math.min(h1, h2), // 小さいほうの熱伝達率で代用する
       ]);
@@ -854,6 +956,9 @@ export const DRILLS: Drill[] = [
         Math.sqrt(d1 * d2), // 相乗平均で代用する
         d2, // 小さいほうの端の温度差で代用する
         d1, // 大きいほうの端の温度差で代用する
+        d1 + d2, // 算術平均の 2 で割り忘れ
+        thIn - thOut, // 高温流体の温度変化を温度差と取り違える
+        tcOut - tcIn, // 低温流体の温度変化を温度差と取り違える
       ]);
       const flow = counter ? '向流' : '並流';
       return {
@@ -874,6 +979,11 @@ export const DRILLS: Drill[] = [
           '**3. 代入する。**$\\Delta T_{lm}=\\dfrac{\\Delta T_1-\\Delta T_2}{\\ln(\\Delta T_1/\\Delta T_2)}=\\dfrac{' + (d1 - d2) + '}{' +
           t.ln.toFixed(3) + '}\\approx' + nf(lmtd, 1) + '$ K。\n\n' +
           '**確かめ**：対数平均は算術平均（' + nf((d1 + d2) / 2, 1) + ' K）より必ず小さく、$\\Delta T_2$ より大きい。\n\n' +
+          '**相乗平均 $\\sqrt{\\Delta T_1\\Delta T_2}=' + nf(Math.sqrt(d1 * d2), 1) + '$ K で代用しない。**' +
+          '3 つの平均は、相乗平均 ≦ 対数平均 ≦ 算術平均 の順に並ぶ。比 $\\Delta T_1/\\Delta T_2$ が 1 に近いと 3 つとも近い値になるが、' +
+          '比が大きくなるほど離れる。ln の値が与えられているのは、対数平均を出すためである。\n\n' +
+          '**流体の温度変化（高温側 ' + (thIn - thOut) + ' K、低温側 ' + (tcOut - tcIn) + ' K）は温度差ではない。**' +
+          '使うのは、同じ端での高温流体と低温流体の温度の差である。\n\n' +
           '**温度差は K でも ℃ でも同じ値**なので、273 を足す必要はない。' +
           '**流れ方を取り違えて組を逆にすると**、比が与えられた ln の値に合わなくなる。そこで気づける。',
       };
@@ -900,6 +1010,7 @@ export const DRILLS: Drill[] = [
         2 * len, // 半径で円周を出す（πr）
         len / 2, // 円周を 2πd とする
         len / 1000, // kW を W に直し忘れる
+        area / ((pi * (dm / 1000) * (dm / 1000)) / 4), // 側面積ではなく管の断面積で割る
       ]);
       return {
         question:
@@ -953,6 +1064,8 @@ export const DRILLS: Drill[] = [
         -(fuel.x * hCo2 + fuel.y * hw - fuel.hf) / vm, // 水の係数を y にする
         q, // kJ/mol のまま MJ/m³N と書く
         (q * vm) / 1000, // モル体積で割らずに掛ける
+        -(fuel.x * hCo2 + (fuel.y / 4) * hw - fuel.hf) / vm, // 水の係数に H の酸素の係数 y/4 を使う
+        -(hCo2 + nw * hw - fuel.hf) / vm, // CO₂ の係数を 1 のままにする
       ]);
       const kind = high ? '高発熱量（総発熱量）' : '低発熱量（真発熱量）';
       const o2 = fuel.x + fuel.y / 4;
@@ -1063,6 +1176,8 @@ export const DRILLS: Drill[] = [
             1 + (x / 0.21) * (g0d / a0), // 分母の 0.21 − x を 0.21 にして比も掛ける
             approx - 1, // 過剰空気率で止める
             21 / (21 - x), // % と割合を混ぜる
+            1 + approx, // 近似式に 1 を足す（m ＝ 1 ＋ 過剰空気率 の形と混ぜる）
+            approx * (a0 / g0d), // ガス量の比の補正を、過剰分ではなく空気比全体に掛ける
           ]
         : [
             approx, // 近似式で済ませる
@@ -1072,8 +1187,9 @@ export const DRILLS: Drill[] = [
             1 + x / 0.21, // 近似式の分母の − x も落とす
             exact - 1, // 過剰空気率で止める
           ];
-      // 空気比は 1 からの差に意味があるので、埋め草は (m − 1) を倍率でずらす（base: 1）
-      const { choices, answer } = buildNumeric(val, fmt, mistakes, { minGap: 0.006, base: 1 });
+      // 空気比は 1 からの差に意味があるので、埋め草は (m − 1) を倍率でずらす（base: 1）。
+      // 近似式の問いは間隔を 2 % にする（0.6 % では、途中を 3 桁に丸めた人が隣を選ぶことがあった）
+      const { choices, answer } = buildNumeric(val, fmt, mistakes, { minGap: askApprox ? 0.02 : 0.006, base: 1 });
       const u = fuel.unit;
       return {
         question:
@@ -1081,7 +1197,7 @@ export const DRILLS: Drill[] = [
           nf(a0, 3) + ' m³N/' + u + '、乾き理論燃焼ガス量は ' + nf(g0d, 3) + ' m³N/' + u + '、湿り理論燃焼ガス量は ' + nf(g0w, 3) +
           ' m³N/' + u + ' である。' +
           (askApprox
-            ? '乾き理論燃焼ガス量が理論空気量に等しいとみなす近似式で求めると、空気比はおよそいくらか。'
+            ? '乾き理論燃焼ガス量が理論空気量に等しいとみなす近似式で求めると、空気比はおよそいくらか。空気中の酸素は体積で 21 % とする。'
             : '近似を使わずに求めると、空気比はおよそいくらか。空気中の酸素は体積で 21 % とする。'),
         choices,
         answer,
@@ -1111,7 +1227,8 @@ export const DRILLS: Drill[] = [
       const fuel = pick(FLUE_FUELS);
       const { a0, g0d, g0w } = flueValues(fuel);
       const m = pick([1.1, 1.15, 1.2, 1.25, 1.3, 1.4]);
-      const cp = pick([1.34, 1.36, 1.38, 1.4, 1.42]); // kJ/(m³N·K)
+      // 1.38 は入れない（プロパン・空気比 1.2・基準 25 ℃ と重なると、令和 6 年度の本番と条件が 4 つそろう）
+      const cp = pick([1.33, 1.35, 1.37, 1.4, 1.42]); // kJ/(m³N·K)
       const tg = pick([160, 180, 200, 230, 250, 280, 300]);
       const t0 = pick([10, 15, 20, 25]);
       const gw = g0w + (m - 1) * a0;
@@ -1124,6 +1241,7 @@ export const DRILLS: Drill[] = [
         pctOf(g0d + (m - 1) * a0, tg - t0), // 乾きのガス量を使う
         pctOf(gw, tg), // 基準温度を引き忘れる
         pctOf(g0w + m * a0, tg - t0), // 余剰ではなく全空気を足す
+        pctOf(m * g0w, tg - t0), // 燃焼ガス量にも空気比を掛ける（G ＝ mG₀w とする）
         pct * 1000, // kJ と MJ をそろえない
         pct / 100, // 割合のまま % を付ける
       ]);
@@ -1193,7 +1311,7 @@ export const DRILLS: Drill[] = [
           (g * (h2 - feed.h)) / st.r, // 2257 ではなくこの圧力の蒸発熱で割る
           g, // 実際蒸発量のまま
           (g * (h2 - feed.h)) / 2676, // 100 ℃ の乾き飽和蒸気の比エンタルピーで割る
-          (g * (stG.hf + x * stG.r - feed.h)) / 2257, // ゲージ圧のまま表を引く
+          // 「ゲージ圧のまま表を引く」は差が 0.5 % ほど以下で minGap に必ず捨てられるので、誤答には入れない（解説で触れる）
           (gt * (h2 - feed.h)) / 2257, // t/h を kg/h に直し忘れる
         ],
         { minGap: 0.01 },
@@ -1208,7 +1326,11 @@ export const DRILLS: Drill[] = [
         choices,
         answer,
         explanation:
-          '**1. 蒸気表は絶対圧で引く。**圧力計の読みはゲージ圧なので、$' + nf(pg, 1) + '+0.1=' + nf(pa, 1) + '$ MPa の行を使う。\n\n' +
+          '**1. 蒸気表は絶対圧で引く。**圧力計の読みはゲージ圧なので、$' + nf(pg, 1) + '+0.1=' + nf(pa, 1) + '$ MPa の行を使う。' +
+          'ゲージ圧の ' + nf(pg, 1) + ' MPa の行を引いても、換算蒸発量は ' + fmt((g * (stG.hf + x * stG.r - feed.h)) / 2257) +
+          ' で、この差は 0.6 % 未満なので換算蒸発量にはほとんど効かない。' +
+          'ただし比エンタルピーそのものを問われたら差が出る（' + nf(stG.hf + x * stG.r, 1) + ' と ' + nf(h2, 1) +
+          ' kJ/kg）ので、絶対圧で引く癖を付けておく。\n\n' +
           '**2. 湿り蒸気の比エンタルピー。**$h_{2}=h\'+xr=' + nf(st.hf, 1) + '+' + nf(x, 2) + '\\times' + nf(st.r, 1) + '\\approx' + nf(h2, 1) +
           '$ kJ/kg。\n\n' +
           '**3. 蒸気 1 kg あたりの吸収熱。**$h_{2}-h_{1}=' + nf(h2, 1) + '-' + nf(feed.h, 1) + '=' + nf(h2 - feed.h, 1) + '$ kJ/kg。\n\n' +
