@@ -5,9 +5,11 @@ import { QuestionCard } from '../components/QuestionCard';
 import {
   CATEGORIES,
   categoryName,
+  ELECTIVES_TO_ANSWER,
   EXAM_MINUTES,
-  MOCK_QUESTIONS,
   FIELDS,
+  KAMOKU_EXAM,
+  MOCK_SCALE,
   fieldName,
   fieldOfCategory,
   PASS_RATIO,
@@ -35,44 +37,102 @@ function shuffle<T>(items: T[]): T[] {
 
 const toItem = (q: Question): Item => ({ qid: q.id, categoryId: q.categoryId, q });
 
+/** 収録順。同じ前置き（passage）を共有する問題は隣り合っているので、この順に並べれば前置きが続けて出る */
+const ORDER = new Map(QUESTIONS.map((q, i) => [q.id, i]));
+
+/**
+ * `total` 問を、重みに比例して割り当てる（**最大剰余法**）。各項目は `cap`（収録数）を超えない。
+ *
+ * **章ごとに `Math.round` してから足すと、端数の合計が総数とずれる。**章が 18 に増えると、
+ * 余りの切り捨てで必須の章が抽選から落ちうる（`docs/section-plan.md` §2 の注）。だから割当を先に確定する。
+ * 収録が足りない章の不足分は、残りの章に同じ方法で配り直す。
+ */
+function allocate(total: number, entries: { id: string; weight: number; cap: number }[]): Map<string, number> {
+  const out = new Map(entries.map((e) => [e.id, 0]));
+  const room = (e: { id: string; cap: number }) => e.cap - (out.get(e.id) ?? 0);
+  let active = entries.filter((e) => e.cap > 0 && e.weight > 0);
+  // 上限は**配る相手（重みが正の章）の収録の合計**で取る。重み 0 の章の収録まで数えると、配りきれずに抜ける
+  let remaining = Math.min(total, active.reduce((n, e) => n + e.cap, 0));
+  while (remaining > 0 && active.length > 0) {
+    const weight = active.reduce((n, e) => n + e.weight, 0);
+    const shares = active.map((e) => ({ e, exact: (remaining * e.weight) / weight }));
+    let given = 0;
+    for (const s of shares) {
+      const n = Math.min(Math.floor(s.exact), room(s.e));
+      out.set(s.e.id, (out.get(s.e.id) ?? 0) + n);
+      given += n;
+    }
+    // 端数の大きい順。**同じ端数の章どうしは乱数で順を決める**（並び順で決めると、毎回同じ章が 1 問多く取る）
+    const tie = new Map(shares.map((s) => [s.e.id, Math.random()]));
+    shares.sort(
+      (a, b) =>
+        b.exact - Math.floor(b.exact) - (a.exact - Math.floor(a.exact)) || (tie.get(a.e.id) ?? 0) - (tie.get(b.e.id) ?? 0),
+    );
+    for (const s of shares) {
+      if (given >= remaining) break;
+      if (room(s.e) <= 0) continue;
+      out.set(s.e.id, (out.get(s.e.id) ?? 0) + 1);
+      given += 1;
+    }
+    if (given === 0) break;
+    remaining -= given;
+    active = active.filter((e) => room(e) > 0);
+  }
+  return out;
+}
+
+/** 課目の模試の問題数。本番の空欄の数に縮尺を掛ける */
+const kamokuCount = (k: { blanks: number }): number => Math.round(k.blanks * MOCK_SCALE);
+const kamokuMinutes = (k: { minutes: number }): number => Math.round(k.minutes * MOCK_SCALE);
+
+/** その課目で出題する章。課目Ⅳの＊選択の章は、選んだものだけ */
+function chaptersOf(field: FieldId, electives: readonly string[]) {
+  return CATEGORIES.filter((c) => c.field === field && c.questions > 0 && (!c.elective || electives.includes(c.id)));
+}
+
 /**
  * 模試の問題を作る。
  *
- * **課目ごとの大問の数は、受験案内の「試験課目」欄に書いてある**ので、
- * 課目の比率は本番どおりに作れる。章ごとの重みも `categories.ts` の `questions`
- * （受験案内の括弧内の数）をそのまま使って抽選する。
- * 収録が足りない章があれば、その不足分は他章から補って総数だけは合わせる。
+ * **課目ごとの問題数は、本番の空欄の数 × `MOCK_SCALE`**（`categories.ts` の `KAMOKU_EXAM`）。
+ * 課目の中では、**章の配点（`points`）に比例して**最大剰余法で割り当ててから抽選する。
+ * だから課目の中の正答率が、そのまま配点の割合のおおよその目安になる。
+ * 収録が足りない章の不足分は、**同じ課目の中の**別の章から補う。課目をまたいで補うと、
+ * 課目ごとの判定が崩れる（課目ごとに 60 % の基準がある）。
  *
- * `fields` を渡すと、その科目だけから作る（**科目免除の形式**で使う）。
- * このとき、不足分を他章から補うのも**同じ科目の中に限る。**
- * 免除された科目の問題が混ざったら、免除の形式にならない。
+ * 並びは本番と同じく**時限の順**（Ⅰ → Ⅱ → Ⅳ → Ⅲ）、課目の中は章の順、章の中は収録順
+ * （同じ前置きの問題が続けて出る）。本番は大問ごとに解くので、混ぜない。
+ *
+ * `fields` は出題する課目（**課目合格の免除**を受けた人の形式で使う）。
+ * `electives` は課目Ⅳの＊選択の章のうち、選んだ 2 つ。
  */
-function build(count: number, fields?: FieldId[]): Item[] {
-  const inScope = (categoryId: string): boolean => {
-    if (fields === undefined) return true;
-    const f = fieldOfCategory(categoryId);
-    return f !== undefined && fields.includes(f);
-  };
-  const weighted = CATEGORIES.filter((c) => c.questions > 0 && inScope(c.id));
-  const totalWeight = weighted.reduce((n, c) => n + c.questions, 0);
-  const picked: Item[] = [];
-  const used = new Set<string>();
-
-  for (const c of weighted) {
-    const want = Math.round((count * c.questions) / totalWeight);
-    const pool = shuffle(QUESTIONS.filter((q) => q.categoryId === c.id));
-    for (const q of pool.slice(0, want)) {
-      picked.push(toItem(q));
-      used.add(q.id);
+function build(fields: readonly FieldId[], electives: readonly string[]): Item[] {
+  const items: Item[] = [];
+  for (const k of KAMOKU_EXAM) {
+    if (!fields.includes(k.id)) continue;
+    const chapters = chaptersOf(k.id, electives);
+    const pools = new Map(chapters.map((c) => [c.id, QUESTIONS.filter((q) => q.categoryId === c.id)]));
+    const counts = allocate(
+      kamokuCount(k),
+      chapters.map((c) => ({ id: c.id, weight: c.points, cap: pools.get(c.id)?.length ?? 0 })),
+    );
+    for (const c of chapters) {
+      const picked = shuffle(pools.get(c.id) ?? []).slice(0, counts.get(c.id) ?? 0);
+      picked.sort((a, b) => (ORDER.get(a.id) ?? 0) - (ORDER.get(b.id) ?? 0));
+      items.push(...picked.map(toItem));
     }
   }
+  return items;
+}
 
-  // 端数と、収録が足りない章の不足分を補う。**絞った科目の外からは取らない。**
-  if (picked.length < count) {
-    const rest = shuffle(QUESTIONS.filter((q) => !used.has(q.id) && inScope(q.categoryId)));
-    for (const q of rest.slice(0, count - picked.length)) picked.push(toItem(q));
-  }
-  return shuffle(picked).slice(0, count);
+/** その形式で出せる問題の数（収録の上限で頭打ち）。設定画面で「不足」を出すのに使う */
+function available(fields: readonly FieldId[], electives: readonly string[]): number {
+  return KAMOKU_EXAM.filter((k) => fields.includes(k.id)).reduce((n, k) => {
+    const pool = chaptersOf(k.id, electives).reduce(
+      (m, c) => m + QUESTIONS.filter((q) => q.categoryId === c.id).length,
+      0,
+    );
+    return n + Math.min(kamokuCount(k), pool);
+  }, 0);
 }
 
 /**
@@ -98,10 +158,11 @@ function fieldScores(items: Item[], answers: number[][]): { id: FieldId; total: 
 }
 
 interface Config {
-  count: number;
   minutes: number;
-  /** 出題する科目。未指定なら全科目（本番形式） */
-  fields?: FieldId[];
+  /** 出題する課目 */
+  fields: FieldId[];
+  /** 課目Ⅳの＊選択の章のうち、選んだもの */
+  electives: string[];
   /** 学習記録に残す形式名 */
   label: string;
 }
@@ -111,51 +172,51 @@ interface Config {
  *
  * **本番形式では、課目の重みを本番どおりにすること。**
  * 課目ごとに配点の 60 % という基準がある以上、重みが違うと判定の意味がなくなる。
+ * 問題数と時間は `KAMOKU_EXAM` × `MOCK_SCALE` から出す（ここに数を手で書かない）。
  *
  * **★ この試験には課目合格の制度がある**（令和 8 年度 受験案内「試験課目の免除制度」）。
  * 一部の課目が合格基準以上なら課目合格者となり、**3 年間はその課目が免除**される。
  * **だから翌年は落とした課目だけを受ける人が多い。**課目ごとの形式を置いているのはそのため。
- *
- * **★ 問題数は仮の値です。**いまは課目ごとの大問の数を入れてある。
- * 本番は大問の中に空欄が並ぶ形で、確認問題の形がまだ決まっていない（CLAUDE.md）。
  */
-const PRESETS: (Config & { note: string })[] = [
+const PRESETS: { label: string; fields: FieldId[]; note: string }[] = [
   {
     label: '本番形式（4 課目）',
-    count: MOCK_QUESTIONS,
-    minutes: EXAM_MINUTES,
-    fields: ['kamoku1', 'kamoku2', 'kamoku3', 'kamoku4'],
-    note: EXAM_MINUTES + ' 分（1 日がかり。時限の間に休憩があります）。課目ごとに配点の 6 割が目安です',
+    fields: ['kamoku1', 'kamoku2', 'kamoku4', 'kamoku3'],
+    note: '本番と同じ時限の順（Ⅰ → Ⅱ → Ⅳ → Ⅲ）に通しで解きます。課目ごとに配点の 6 割が目安です',
   },
   {
     label: '課目Ⅰだけ（エネルギー総合管理及び法規）',
-    count: 3,
-    minutes: 80,
     fields: ['kamoku1'],
-    note: '80 分（1 時限）。熱分野と電気分野で共通の課目です',
+    note: '本番は 1 時限 80 分。熱分野と電気分野で共通の課目です',
   },
   {
     label: '課目Ⅱだけ（熱と流体の流れの基礎）',
-    count: 4,
-    minutes: 110,
     fields: ['kamoku2'],
-    note: '110 分（2 時限）',
+    note: '本番は 2 時限 110 分',
   },
   {
     label: '課目Ⅲだけ（燃料と燃焼）',
-    count: 3,
-    minutes: 80,
     fields: ['kamoku3'],
-    note: '80 分。★ 本番では 4 時限（最後）です',
+    note: '本番は 80 分。★ 4 時限（最後）です',
   },
   {
     label: '課目Ⅳだけ（熱利用設備及びその管理）',
-    count: 6,
-    minutes: 110,
     fields: ['kamoku4'],
-    note: '110 分。★ 本番では 3 時限です',
+    note: '本番は 110 分。★ 3 時限です',
   },
 ];
+
+const presetMinutes = (fields: readonly FieldId[]): number =>
+  KAMOKU_EXAM.filter((k) => fields.includes(k.id)).reduce((n, k) => n + kamokuMinutes(k), 0);
+const presetCount = (fields: readonly FieldId[]): number =>
+  KAMOKU_EXAM.filter((k) => fields.includes(k.id)).reduce((n, k) => n + kamokuCount(k), 0);
+
+/** 課目Ⅳの＊選択の章。本番は 4 つから `ELECTIVES_TO_ANSWER`（2）つを選ぶ */
+const ELECTIVE_CHAPTERS = CATEGORIES.filter((c) => c.elective);
+/** 最初に選んでおく章。収録のある章から先頭の 2 つ */
+const DEFAULT_ELECTIVES = ELECTIVE_CHAPTERS.filter((c) => QUESTIONS.some((q) => q.categoryId === c.id))
+  .slice(0, ELECTIVES_TO_ANSWER)
+  .map((c) => c.id);
 
 interface Session {
   config: Config;
@@ -174,10 +235,14 @@ function formatTime(sec: number): string {
   return `${String(m).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 }
 
+/** 画面に出す課目の番号 */
+const ROMAN: Partial<Record<FieldId, string>> = { kamoku1: 'Ⅰ', kamoku2: 'Ⅱ', kamoku3: 'Ⅲ', kamoku4: 'Ⅳ' };
+
 export function Mock(): JSX.Element {
   const [session, setSession] = useState<Session | null>(null);
   const [now, setNow] = useState(Date.now());
   const [reviewing, setReviewing] = useState(false);
+  const [electives, setElectives] = useState<string[]>(DEFAULT_ELECTIVES);
 
   const running = session !== null && session.finishedAt === null;
 
@@ -206,7 +271,10 @@ export function Mock(): JSX.Element {
     actions.addMock({
       id: `mock-${Date.now()}`,
       at: Date.now(),
-      preset: `${s.config.label}　${s.items.length} 問 / ${s.config.minutes} 分`,
+      // 課目Ⅳを含む回は、選んだ＊選択の章も残す（履歴で、どの 2 つを選んだ回か見分けられるように）
+      preset:
+        `${s.config.label}　${s.items.length} 問 / ${s.config.minutes} 分` +
+        (s.config.fields.includes('kamoku4') ? `（選択：${s.config.electives.map(categoryName).join('・')}）` : ''),
       total: s.items.length,
       correct,
       elapsed,
@@ -265,43 +333,83 @@ export function Mock(): JSX.Element {
             時間制限つきで通しで解きます。途中で正誤は表示されません。時間配分の感覚をつかむことが目的です。
           </p>
         </header>
+        <section className="section">
+          <h2>課目Ⅳの選択問題（{ELECTIVES_TO_ANSWER} つ選ぶ）</h2>
+          <p className="hint">
+            本番の課目Ⅳは、＊印の 4 問題から {ELECTIVES_TO_ANSWER} 問題を選んで解答します。本番で選ぶつもりの分野を選んでください。
+          </p>
+          <div className="chips">
+            {ELECTIVE_CHAPTERS.map((c) => {
+              const n = QUESTIONS.filter((q) => q.categoryId === c.id).length;
+              const on = electives.includes(c.id);
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  className={`chip ${on ? 'on' : ''}`}
+                  disabled={n === 0}
+                  onClick={() =>
+                    setElectives((cur) =>
+                      cur.includes(c.id)
+                        ? cur.filter((id) => id !== c.id)
+                        : // 3 つ目を押したら、いちばん古い選択を外す
+                          [...cur, c.id].slice(-ELECTIVES_TO_ANSWER),
+                    )
+                  }
+                >
+                  {c.name}
+                  {n === 0 ? '（未収録）' : ''}
+                </button>
+              );
+            })}
+          </div>
+        </section>
         <div className="preset-grid">
           {PRESETS.map((p) => {
-            // 科目を絞る形式では、**その科目の収録数**で足りるかを見る。
+            // 課目を絞る形式では、**その課目の収録数**で足りるかを見る。
             // 全体の問題数で判定すると、ある課目が空でも押せてしまう。
-            const pool =
-              p.fields === undefined
-                ? QUESTIONS.length
-                : QUESTIONS.filter((q) => {
-                    const f = fieldOfCategory(q.categoryId);
-                    return f !== undefined && p.fields?.includes(f);
-                  }).length;
-            const enough = pool >= p.count;
+            const needsElectives = p.fields.includes('kamoku4') && electives.length !== ELECTIVES_TO_ANSWER;
+            const count = presetCount(p.fields);
+            const minutes = presetMinutes(p.fields);
+            const pool = available(p.fields, electives);
+            const enough = !needsElectives && pool >= count;
             return (
               <button
                 key={p.label}
                 type="button"
                 className="action"
                 disabled={!enough}
-                onClick={() =>
+                onClick={() => {
+                  const items = build(p.fields, electives);
                   setSession({
-                    config: { count: p.count, minutes: p.minutes, fields: p.fields, label: p.label },
-                    items: build(p.count, p.fields),
-                    answers: Array.from({ length: p.count }, () => [] as number[]),
+                    config: { minutes, fields: p.fields, electives, label: p.label },
+                    items,
+                    answers: Array.from({ length: items.length }, () => [] as number[]),
                     idx: 0,
                     startedAt: Date.now(),
                     finishedAt: null,
-                  })
-                }
+                  });
+                }}
               >
                 <span className="action-title">{p.label}</span>
                 <span className="action-sub">
-                  {enough ? p.note : `収録問題が不足しています（現在 ${pool} 問）`}
+                  {needsElectives
+                    ? `課目Ⅳの選択問題を ${ELECTIVES_TO_ANSWER} つ選んでください`
+                    : enough
+                      ? `${count} 問 / ${minutes} 分。${p.note}`
+                      : `収録問題が不足しています（${count} 問に対して ${pool} 問）`}
                 </span>
               </button>
             );
           })}
         </div>
+        <p className="hint">
+          <strong>問題数と時間は、どちらも本番の半分です。</strong>
+          本番で 1 人が解く空欄は 4 課目でおよそ {KAMOKU_EXAM.reduce((n, k) => n + k.blanks, 0)} 個（
+          {KAMOKU_EXAM.map((k) => `課目${ROMAN[k.id]} ${k.blanks}`).join('・')}）で、
+          その半分を出し、時間も半分にしています。<strong>1 問あたりの持ち時間は本番とほぼ同じ</strong>です（半分にして端数を丸めた分だけずれます）。
+          課目の中では、大問の配点に比例して問題を割り当てています。
+        </p>
         <p className="hint">
           本番は 4 課目を 1 日で受けます。合計 {EXAM_MINUTES} 分ですが、
           <strong>時限の間に休憩があるので、通しで {EXAM_MINUTES} 分座るわけではありません。</strong>
@@ -309,12 +417,12 @@ export function Mock(): JSX.Element {
         </p>
         <p className="hint warn">
           <strong>★ この模試は、本番の問題の形ではありません。</strong>
-          本番は大問の中に空欄がいくつも並び、空欄ごとに語群や数値をマークする形です。
+          本番は大問の中に空欄がいくつも並び、空欄ごとに解答群から記号を選んでマークする形です。
           ここで測れるのは、解くのに必要な知識がそろっているかまでです。
         </p>
         <p className="hint">
           <strong>合格基準は、各課目とも配点の {Math.round(PASS_RATIO * 100)} % です。</strong>
-          合計点ではありません。<strong>1 課目でも 6 割に届かないと合格になりません</strong>ので、この模試も課目ごとに結果を出します。
+          合計点ではありません。<strong>1 課目でも 6 割に届かないと試験合格になりません</strong>ので、この模試も課目ごとに結果を出します。
           <strong>合格した課目は 3 年間免除</strong>されるので、落とした課目だけを受ける形式も置いてあります。
         </p>
         <p className="hint">
@@ -333,8 +441,8 @@ export function Mock(): JSX.Element {
     const rate = Math.round((correct / session.items.length) * 100);
     const elapsed = Math.round((session.finishedAt - session.startedAt) / 1000);
     const scores = fieldScores(session.items, session.answers);
-    // 科目を絞った形式かどうか。絞った形式では、出していない科目の行の書き方を変える
-    const narrowed = session.config.fields;
+    // 課目を絞った形式かどうか。絞った形式では、出していない課目の行の書き方を変える
+    const narrowed = session.config.fields.length < KAMOKU_EXAM.length ? session.config.fields : undefined;
     const blank = session.answers.filter((a) => a.length === 0).length;
     // この試験で問われるのは速度でもある。持ち時間と実際のペースを比べる
     const perQuestion = elapsed / session.items.length;
@@ -403,26 +511,26 @@ export function Mock(): JSX.Element {
         </div>
 
         <section className="section">
-          <h2>科目別の判定</h2>
+          <h2>課目別の判定</h2>
           <p className="hint">
-            <strong>合格基準は「各科目とも満点の {Math.round(PASS_RATIO * 100)} パーセント程度」</strong>と公表されています。
-            <strong>「以上」とは言い切られていません。</strong>合計点ではないので、
-            <strong>1 科目でも 6 割に届かないと厳しい</strong>と見てください。
-            下の表は、科目ごとに<strong>この模試で 6 割に届いたか</strong>を出しているだけです。
+            <strong>合格基準は、各課目とも配点の {Math.round(PASS_RATIO * 100)} %</strong> です（令和 8 年度 受験案内）。
+            合計点ではないので、<strong>1 課目でも 6 割に届かないと試験合格になりません</strong>（届いた課目は課目合格）。
+            この模試は、課目の中の問題数を大問の配点に比例させているので、正答率は配点の割合のおおよその目安になります。
+            下の表は、課目ごとに<strong>この模試で 6 割に届いたか</strong>を出しているだけです。
             <strong>本番の合否を判定するものではありません。</strong>
           </p>
           {narrowed !== undefined && (
             <p className="hint">
-              これは<strong>科目を絞った形式</strong>です。判定は
+              これは<strong>課目を絞った形式</strong>です。判定は
               <strong>{narrowed.map(fieldName).join('・')}だけ</strong>で決まります。
-              <strong>本番はこの科目の組合せではありません</strong>（科目免除を受けた場合の形式です）。
+              （課目合格で免除を受けた場合の形式です）
             </p>
           )}
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>科目</th>
+                  <th>課目</th>
                   <th>正解 / 出題</th>
                   <th>正答率</th>
                   <th>6 割に届いたか</th>
@@ -431,7 +539,7 @@ export function Mock(): JSX.Element {
               <tbody>
                 {scores.map((f) => {
                   const met = f.total > 0 && f.correct / f.total >= PASS_RATIO;
-                  // **出していない科目を「出題なし」と並べない。**
+                  // **出していない課目を「出題なし」と並べない。**
                   // 空欄に見えると、点が取れなかったのかと読める。
                   const excluded = narrowed !== undefined && !narrowed.includes(f.id);
                   return (

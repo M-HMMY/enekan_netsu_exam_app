@@ -1519,6 +1519,21 @@ for (const p of renderCheck()) err(p);
       );
     }
   }
+
+  // **★ 前のアプリの合格基準の書き方が、画面に残っていないか。**
+  // 姉妹アプリは「満点の 60 パーセント程度」「『以上』とは言い切られていません」「3 科目」と書いていた。
+  // **この試験は「各課目とも配点の 60 %」で、「程度」が付かない**（令和 8 年度 受験案内）。
+  // 模試の結果画面と成績分析に残っていて、2026 年 10 月 17 日に見つけた。
+  for (const name of readdirSync('src/pages')) {
+    if (!name.endsWith('.tsx')) continue;
+    const path = `src/pages/${name}`;
+    const shown = strip(readFileSync(path, 'utf8'));
+    for (const bad of ['パーセント程度', '言い切られていません', '3 科目', '科目別']) {
+      if (shown.includes(bad)) {
+        err(`${path} の画面に「${bad}」がある。前のアプリの書き方。この試験は「各課目とも配点の 60 %」（程度は付かない、4 課目）`);
+      }
+    }
+  }
 }
 
 // ---- ★ 章の導入文が、仮置きのまま画面に出ていないか ----

@@ -317,12 +317,28 @@ export const LAW_PREAMBLE: readonly string[] = [
 ];
 
 /**
- * **このアプリの模試 1 本あたりの問題数。**いまは課目の大問数の合計（3 + 4 + 3 + 6 = 16）。
+ * **課目ごとの本番の時間と、1 人が解く空欄の数**（令和 6〜8 年度の公開問題。`docs/public-questions.md` §2）。
+ * 並びは**時限の順**（Ⅰ → Ⅱ → Ⅳ → Ⅲ）。模試もこの順に出す。
  *
- * **★ 仮の値です。**本番は大問の中に空欄が並ぶ形で、確認問題の形がまだ決まっていない
- * （CLAUDE.md「まだ決めていないこと」）。**形を決めたら、ここも決め直すこと。**
+ * 課目Ⅳの 80 は、必須 55 ＋ 選択 2 問ぶん（1 問 10〜15）の見積り。
  */
-export const MOCK_QUESTIONS = 16;
+export const KAMOKU_EXAM: { id: FieldId; period: number; minutes: number; blanks: number }[] = [
+  { id: 'kamoku1', period: 1, minutes: 80, blanks: 42 },
+  { id: 'kamoku2', period: 2, minutes: 110, blanks: 56 },
+  { id: 'kamoku4', period: 3, minutes: 110, blanks: 80 },
+  { id: 'kamoku3', period: 4, minutes: 80, blanks: 39 },
+];
+
+/**
+ * **模試の縮尺。空欄の数と時間を、どちらも本番の半分にする。**
+ *
+ * 本番どおりの数（4 課目で約 217 空欄）は出せない。課目Ⅲは本番 39 空欄に対して収録が 33 問しかなく、
+ * 足りる課目でも収録のほぼ全部が毎回出て、抽選の意味がなくなる。
+ * **時間も同じ割合で縮める**ので、1 空欄あたりの持ち時間（ペース）は本番と同じになる。
+ *
+ * 課目の中の章への割り当ては、章の配点（`points`）に比例させる（`Mock.tsx` の `allocate`）。
+ */
+export const MOCK_SCALE = 0.5;
 
 /**
  * **本番の試験時間の合計（380 分）。**令和 8 年度 受験案内の時限表から。

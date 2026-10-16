@@ -662,7 +662,53 @@ show('確認問題の設定', (await visible()).slice(0, 500));
 
 // 模試。**科目ごとの判定が出るのがこのアプリの要。**
 await go('#/mock');
-show('模試の設定', (await visible()).slice(0, 900));
+show('模試の設定', (await visible()).slice(0, 1400));
+
+// 本番形式を最後までめくって、**抽選の中身**を数える。
+// 見るのは 3 つ：課目ごとの問題数（本番の空欄 × 縮尺）、時限の順（Ⅰ → Ⅱ → Ⅳ → Ⅲ）で章が固まって出るか、
+// 課目Ⅳの＊選択の章が、選んだ 2 つだけか。
+{
+  const report = [];
+  const started = await click('本番形式');
+  await sleep(700);
+  if (started !== 'OK') {
+    report.push('本番形式が押せなかった');
+  } else {
+    const seq = [];
+    for (let i = 0; i < 300; i += 1) {
+      const info = await evaluate(
+        `(() => {
+           const cat = document.querySelector('.qcard .tag-cat')?.innerText.trim() ?? '';
+           const counter = document.querySelector('.qcard .counter')?.innerText.trim() ?? '';
+           return { cat, counter, passage: !!document.querySelector('.qcard .qpassage') };
+         })()`,
+      );
+      seq.push(info.cat);
+      const [cur, all] = info.counter.split('/').map((s) => Number(s.trim()));
+      if (cur === all) break;
+      if ((await click('次の問題 →')) !== 'OK') break;
+      await sleep(60);
+    }
+    // 章が連続して出る区間にまとめる。同じ章が 2 区間に割れていたら、並べ方が崩れている
+    const runs = [];
+    for (const c of seq) {
+      if (runs.length && runs[runs.length - 1][0] === c) runs[runs.length - 1][1] += 1;
+      else runs.push([c, 1]);
+    }
+    const names = runs.map(([c]) => c);
+    const split = names.filter((c, i) => names.indexOf(c) !== i);
+    report.push(
+      `問題数: ${seq.length}`,
+      '出た順（章 × 問題数）:',
+      ...runs.map(([c, n]) => `  ${c} × ${n}`),
+      split.length ? `★ 同じ章が離れて出ている: ${[...new Set(split)].join('、')}` : '同じ章は 1 か所にまとまっている',
+    );
+    await click('採点する');
+    await sleep(700);
+    report.push('', (await visible()).slice(0, 1200));
+  }
+  show('模試（本番形式）', report.join('\n'));
+}
 
 
 // ============================================================
