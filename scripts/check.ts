@@ -1253,8 +1253,11 @@ for (const s2 of SECTIONS) {
     // 後ろから消す。前から消すと index がずれる。
     for (const h of heads.reverse()) {
       const from = h.index ?? 0;
-      const nextHead = ledgerRaw.indexOf('\n### ', from + h[0].length);
-      const to = nextHead < 0 ? ledgerRaw.length : nextHead;
+      // **次の `###` か `##` の見出しまで。**`###` だけを探していたので、§8 の「外した値」を消すとき、
+      // 後ろの `## 9.` の見出しまで巻き込んで消えていた（2026 年 10 月 17 日。台帳を節ごとに分けたら §9 が 0 字になって気づいた）
+      const rest = ledgerRaw.slice(from + h[0].length);
+      const m = /\n#{2,3} /.exec(rest);
+      const to = m ? from + h[0].length + m.index : ledgerRaw.length;
       ledger = ledger.slice(0, from) + ledger.slice(to);
     }
   }
@@ -1277,10 +1280,26 @@ for (const s2 of SECTIONS) {
     [/^(?:年)$/, 'year'],
     [/^(?:人|名)$/, 'person'],
     [/^(?:倍)$/, 'times'],
+    // 判断基準（§9）の基準廃ガス温度・炉壁外面温度と、発熱量の区分（MJ）。2026 年 10 月 17 日に足した
+    [/^(?:℃|°C)$/, 'degC'],
+    [/^(?:メガジュール|MJ)$/, 'MJ'],
+    // エネルギー動向・基本計画（§10）の量。ea-6・ea-9 の中心の値はこの単位で書かれる（2026 年 10 月 17 日に足した。
+    // 足す前は、一次エネルギー供給の PJ や発電電力量の億 kWh を書き誤っても鳴らなかった）
+    [/^(?:PJ)$/, 'PJ'],
+    [/^(?:EJ)$/, 'EJ'],
+    [/^(?:億kWh|億 kWh)$/, '億kWh'],
+    [/^(?:兆kWh|兆 kWh)$/, '兆kWh'],
+    [/^(?:億kL|億 kL)$/, '億kL'],
+    [/^(?:億t|億 t|億トン)$/, '億t'],
+    [/^(?:万t|万 t|万トン)$/, '万t'],
+    [/^(?:GW)$/, 'GW'],
+    [/^(?:兆円)$/, '兆円'],
   ];
   const UNIT_RE =
     'キロリットル|kL|ｋＬ|ギガジュール|GJ|キロワット時|kWh|トン|立方メートル|m3|m³|t|' +
-    'パーセント|％|%|か月|箇月|ヶ月|月|年|人|名|倍';
+    'パーセント|％|%|か月|箇月|ヶ月|月|年|人|名|倍|℃|°C|メガジュール|MJ|' +
+    // §10 の量。数字のすぐ後ろに来るのは「億」「兆」「万」なので、kWh・kL・t の綴りとは取り合わない
+    'PJ|EJ|億 ?kWh|兆 ?kWh|億 ?kL|億 ?t|億トン|万 ?t|万トン|GW|兆円';
   /** 正規化したキー → 問題文に出てくる形。**注意文は読める形で出す。** */
   const pairs = (text: string): Map<string, string> => {
     const out = new Map<string, string>();
@@ -1291,7 +1310,6 @@ for (const s2 of SECTIONS) {
     }
     return out;
   };
-  const known = new Set(pairs(ledger).keys());
   // **見逃してよいもの。**理由を必ず書くこと。
   // （高圧ガス甲種版の 3 件は、この試験に無い問題のものなので外した。）
   const allowed = new Set<string>([
@@ -1300,6 +1318,8 @@ for (const s2 of SECTIONS) {
     ...['40 kL', '150 t', '2000 GJ'],
     ...['1000 t', '4000 kL', '3000 t', '5000 GJ', '1000 kL'],
     ...['903330 GJ', '23305.9 kL', '694.0 kL', '19448.6 kL', '45360 GJ', '1170.3 kL', '20142.6 kL'],
+    // lw-3 の単位の換算（1 MWh ＝ 3,600 MJ）。法令の数値ではない。MJ を単位に足したとき（2026 年 10 月 17 日）に鳴った
+    '3600 MJ',
   ]);
   // **台帳が受け持つのは、法（`k1-law`）と、年版の資料の数値を問う情勢の節（`ea-6`・`ea-9`）。**
   // 工学の数値（課目Ⅰ問題 3 と課目Ⅱ〜Ⅳ）は台帳の担当ではない。
@@ -1307,15 +1327,45 @@ for (const s2 of SECTIONS) {
   // ★ `k1-policy` を章ごと照らすと、SI 単位・エネルギーの貯蔵などの**工学の例題の値まで**注意になった
   //   （2026 年 10 月 9 日に 40 件あまり）。年版に縛られる数値を書くのは `ea-6`（白書）と `ea-9`（基本計画）なので、
   //   情勢の章はこの 2 節だけを照らす。条約などの年（`ea-7`）は台帳ではなくレビューで確かめる。
-  const LEDGER_CATEGORIES = new Set(['k1-law', 'k1-policy']);
-  const LEDGER_POLICY_SECTIONS = new Set(['ea-6', 'ea-9']);
-  const ledgerTarget = (categoryId: string, sectionId: string | undefined): boolean =>
-    LEDGER_CATEGORIES.has(categoryId) &&
-    (categoryId !== 'k1-policy' || (sectionId !== undefined && LEDGER_POLICY_SECTIONS.has(sectionId)));
+  //
+  // **★ 台帳の節ごとに、照らす相手を分ける**（2026 年 10 月 17 日）。告示（§9）とエネルギー動向・基本計画（§10）を
+  // 足したとき、台帳全体を 1 つの集合にしたままだと、§9 の百分率や GJ（9.40 GJ など）が法の照合に混ざり、
+  // **法の節で書き誤っても素通りになる**ところだった（別の目のレビューで指摘。9.40 GJ は則の買電の 8.64 GJ と取り違えやすい）。
+  //   - 法（`k1-law`）… §0〜§8
+  //   - 判断基準の節（`ea-10`〜`ea-12`、工業炉の `hu-43`）… §9（告示）。章ごとに照らすと工学の例題が鳴るので節で絞る
+  //   - 情勢の節（`ea-6`・`ea-9`）… §10（エネルギー動向・エネルギー基本計画）
+  const chapterOf = (n: number): string => {
+    const m = new RegExp(`^## ${n}\\. .*$`, 'm').exec(ledger);
+    if (!m) return '';
+    const next = ledger.indexOf('\n## ', m.index + m[0].length);
+    return ledger.slice(m.index, next < 0 ? ledger.length : next);
+  };
+  const kokuji = chapterOf(9);
+  const energy = chapterOf(10);
+  // 「外した値」の消し方を誤ると、節の見出しごと消えて、その節の値が法の照合に混ざる（実際に起きた）
+  for (const [n, body] of [[9, kokuji], [10, energy]] as const) {
+    if (new RegExp(`^## ${n}\\. `, 'm').test(ledgerRaw) && body === '') {
+      err(`docs/primary-numbers.md の §${n} を切り出せない（見出しが消えている）。§${n} の値が法の照合に混ざる`);
+    }
+  }
+  const lawLedger = ledger.replace(kokuji, '').replace(energy, '');
+  const knownLaw = new Set(pairs(lawLedger).keys());
+  const knownKokuji = new Set(pairs(kokuji).keys());
+  const knownEnergy = new Set(pairs(energy).keys());
+  const KOKUJI_SECTIONS = new Set(['ea-10', 'ea-11', 'ea-12', 'hu-43']);
+  const ENERGY_SECTIONS = new Set(['ea-6', 'ea-9']);
+  /** 照らす台帳。対象外なら null */
+  const ledgerFor = (categoryId: string, sectionId: string | undefined): Set<string> | null => {
+    if (categoryId === 'k1-law') return knownLaw;
+    if (sectionId !== undefined && KOKUJI_SECTIONS.has(sectionId)) return knownKokuji;
+    if (sectionId !== undefined && ENERGY_SECTIONS.has(sectionId)) return knownEnergy;
+    return null;
+  };
   for (const q of QUESTIONS) {
-    if (!ledgerTarget(q.categoryId, q.sectionId)) continue;
+    const target = ledgerFor(q.categoryId, q.sectionId);
+    if (target === null) continue;
     for (const [key, shown] of pairs(q.question)) {
-      if (known.has(key) || allowed.has(key)) continue;
+      if (target.has(key) || allowed.has(key)) continue;
       warn(
         `問題 ${q.id}: 「${shown}」が docs/primary-numbers.md に見当たりません。` +
           `台帳に足すか、値を書かない形にすること`,
@@ -1326,9 +1376,10 @@ for (const s2 of SECTIONS) {
   // 2 巡目でいちばん多く出た型なので、両方を同じ物差しで測る。
   // 節は章で判定する（`ea-` は情勢の章と管理技術の章で接頭辞を共有するので、節 ID では分けられない）。
   for (const sec of SECTIONS) {
-    if (!ledgerTarget(sec.categoryId, sec.id)) continue;
+    const target = ledgerFor(sec.categoryId, sec.id);
+    if (target === null) continue;
     for (const [key, shown] of pairs(sec.body)) {
-      if (known.has(key) || allowed.has(key)) continue;
+      if (target.has(key) || allowed.has(key)) continue;
       warn(
         `節 ${sec.id}: 「${shown}」が docs/primary-numbers.md に見当たりません。` +
           `台帳に足すか、値を書かない形にすること`,

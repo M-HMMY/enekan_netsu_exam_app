@@ -11,3 +11,7 @@ out-*.txt
 review-*.txt
 out-*.log
 review-*.log
+
+# 一次資料の原本（告示・白書・エネルギー基本計画の PDF）。公開リポジトリに載せない。
+# 取り方は docs/primary-numbers.md §0。
+sources/
