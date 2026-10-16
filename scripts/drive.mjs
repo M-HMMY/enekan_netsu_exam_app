@@ -218,8 +218,8 @@ const show = (title, body) => {
 //
 // 「全節を開く → 確認問題を解いて採点 → ドリル → 体験ツール → 模試」まで押す。
 //
-// **いまの中身**（2026 年 9 月 23 日）：**教本 150 節、確認問題 225 問、計算ドリル 24 種類。**
-// **体験ウィジェットだけがまだ 7 つ（引き継いだまま）**なので、その区間は薄い。
+// **いまの中身**（2026 年 10 月 17 日）：**教本 138 節、確認問題 239 問、計算ドリル 19 種類、体験ウィジェット 5 個。**
+// 確認問題は全問をめくる（数分かかる）。
 //
 // **★ 計算ドリルは、ここで必ず押してみること。**
 // `npm run check` は 1 種類につき 200 回生成して「5 択か」「0 が混じらないか」を見ているが、
@@ -348,7 +348,8 @@ show('計算ドリルの一覧', (await visible()).slice(0, 600));
     // 6 種類すべてが出るまで、何問か続けて解く。
     // 値は毎回振り直されるので、**同じ種類でも別の問題**になる。
     const seen = new Set();
-    for (let i = 0; i < 24; i += 1) {
+    // 19 種類から無作為に出るので、全種類を見るには多めに回す
+    for (let i = 0; i < 80; i += 1) {
       const info = await evaluate(
         `(() => {
            const page = document.querySelector('.page');
@@ -492,51 +493,127 @@ show('体験ツールの一覧', (await visible()).slice(0, 600));
   show('体験ウィジェット（操作したあと）', toolReport.join('\n'));
 }
 
-// 確認問題。**入っていれば実際に解いて採点まで押す。**（いまは 0 問）
+// 確認問題。**全問をめくって、1 問ずつ描けているかを見る。**
+//
+// 形 B（空欄 1 つ＝1 問）にしてから、画面に出るものが増えた：大問の前置き（passage）、
+// 選択肢の行内数式（`$...$`）、2〜20 個の解答群。`npm run check` は描けるかまでしか見ないので、
+// 押して、前置きが出ているか・数式の生の記号が残っていないかをここで数える。
+//
+// 前置きを持つ問題の数は、ソースを文字列として読んで数える（`ALL_SECTIONS` と同じ考え方）。
+const EXPECT_PASSAGES = (() => {
+  const dir = 'src/data/questions';
+  let n = 0;
+  for (const name of readdirSync(dir)) {
+    if (!name.endsWith('.ts') || name === 'index.ts' || name === 'passages.ts') continue;
+    n += [...readFileSync(join(dir, name), 'utf8').matchAll(/^\s*passage: '[^']+',/gm)].length;
+  }
+  return n;
+})();
+
 await go('#/practice');
 show('確認問題の設定', (await visible()).slice(0, 500));
 {
   const qReport = [];
-  // ボタンの文言は「10 問を開始する」のように出題数が入る。**文字で押すので前方一致で探す。**
+  const bad = [];
+  let total = 0;
+  let withPassage = 0;
+  let withMath = 0;
+  let multi = 0;
+  const sizes = new Map();
+  // 出題数の「すべて」を押す。**分野の「すべて（239）」も同じ文字を含む**ので、完全一致で探す。
+  await evaluate(
+    `[...document.querySelectorAll('button.chip')].find((e) => e.innerText.trim() === 'すべて')?.click()`,
+  );
+  await sleep(300);
+  // ボタンの文言は「239 問を開始する」のように出題数が入る。**文字で押すので前方一致で探す。**
   const started = (await click('問を開始する')) === 'OK';
   await sleep(700);
   if (!started) {
     qReport.push('開始ボタンが押せなかった');
   } else {
-    for (let i = 0; i < 6; i += 1) {
+    for (let i = 0; i < 400; i += 1) {
       const info = await evaluate(
         `(() => {
-           const page = document.querySelector('.page');
-           const text = page ? page.innerText : '';
-           const choices = [...document.querySelectorAll('button.choice')];
-           return { choices: choices.length, head: text.slice(0, 120).replace(/\\s+/g, ' ') };
+           const card = document.querySelector('.qcard');
+           if (!card) return null;
+           const choices = [...card.querySelectorAll('button.choice')];
+           const passage = card.querySelector('.qpassage');
+           const ctext = choices.map((c) => c.innerText).join(' | ');
+           const body = card.innerText;
+           return {
+             choices: choices.length,
+             passage: !!passage,
+             missing: !!card.querySelector('.qpassage-missing'),
+             math: card.querySelectorAll('.choice .math').length,
+             multi: !!card.querySelector('.tag-multi'),
+             nan: /NaN|undefined|Infinity|\\[object Object\\]/.test(body),
+             // 数式の命令や $ が生のまま出ていたら、記法か描画が崩れている
+             raw: /\\$|\\\\[a-zA-Z,]/.test(body),
+             rawChoices: /\\$|\\\\[a-zA-Z,]/.test(ctext),
+             head: (card.querySelector('.qbody')?.innerText ?? '').slice(0, 70).replace(/\\s+/g, ' '),
+           };
          })()`,
       );
-      if (info.choices === 0) {
-        qReport.push(`${i + 1} 問目: 選択肢が出ていない  ${info.head}`);
-        break;
-      }
-      qReport.push(
-        `${i + 1} 問目: 選択肢 ${info.choices} 個` +
-          (info.choices >= 2 && info.choices <= 20 ? '' : '  ★ 解答群は 2〜20 個のはず'),
-      );
-      await choose(i % info.choices);
-      await sleep(150);
+      if (info === null) break;
+      total += 1;
+      if (info.passage && !info.missing) withPassage += 1;
+      if (info.math) withMath += 1;
+      if (info.multi) multi += 1;
+      sizes.set(info.choices, (sizes.get(info.choices) ?? 0) + 1);
+
+      const flags = [];
+      if (info.choices < 2 || info.choices > 20) flags.push(`選択肢 ${info.choices} 個`);
+      if (info.missing) flags.push('前置きが見つからない');
+      if (info.nan) flags.push('NaN/undefined');
+      if (info.raw) flags.push(info.rawChoices ? '選択肢に生の $ や \\ ' : '本文に生の $ や \\ ');
+
+      await choose(0);
+      await sleep(80);
       await click('解答する');
-      await sleep(250);
-      // 解説に教本への導線があるか（sectionId が効いているか）
-      if (i === 0) {
-        const link = await evaluate(
-          `[...document.querySelectorAll('button, a')]
-             .some((e) => /この節を読む|教本/.test(e.innerText))`,
-        );
-        qReport.push(`  解説から教本へ戻る導線: ${link ? 'ある' : '★ 無い'}`);
-      }
-      if (await click('次の問題') !== 'OK') break;
-      await sleep(300);
+      await sleep(150);
+      const after = await evaluate(
+        `(() => {
+           const r = document.querySelector('.result');
+           const t = r ? r.innerText : '';
+           return {
+             shown: !!r,
+             raw: /\\$|\\\\[a-zA-Z,]/.test(t),
+             nan: /NaN|undefined|\\[object Object\\]/.test(t),
+             link: [...document.querySelectorAll('button, a')].some((e) => /この節を読む|教本/.test(e.innerText)),
+           };
+         })()`,
+      );
+      if (!after.shown) flags.push('解説が出ない');
+      if (after.raw) flags.push('解説に生の $ や \\ ');
+      if (after.nan) flags.push('解説に NaN/undefined');
+      if (!after.link) flags.push('教本への導線が無い');
+      if (flags.length) bad.push(`${i + 1} 問目: ★ ${flags.join(' / ')}\n    ${info.head}`);
+
+      // 最後の問題では「次の問題」の代わりに結果へ進むボタンが出る
+      if ((await click('次の問題')) !== 'OK' && (await click('結果')) !== 'OK') break;
+      await sleep(150);
     }
   }
+  qReport.push(
+    `めくった問題: ${total} 問`,
+    `前置きが出た問題: ${withPassage} 問（ソースで passage を持つ問題: ${EXPECT_PASSAGES} 問）` +
+      (withPassage === EXPECT_PASSAGES ? '' : '  ★ 数が合わない'),
+    `選択肢に数式がある問題: ${withMath} 問`,
+    `複数選択: ${multi} 問`,
+    `選択肢の数の分布: ${[...sizes].sort((a, b) => a[0] - b[0]).map(([k, v]) => `${k} 択 ${v}`).join('、')}`,
+    bad.length ? bad.join('\n') : '異常のあった問題: なし',
+  );
   show('確認問題', qReport.join('\n'));
+  // 結果画面の「間違えた問題」の一覧。**ここは問題文を Markdown で描かない**ので、
+  // 数式が生のまま出ていた（2026 年 10 月 17 日）。1 件でも残っていれば鳴らす。
+  const rawMissed = await evaluate(
+    `[...document.querySelectorAll('.missed-q')].filter((e) => /\\$|\\\\[a-zA-Z,]/.test(e.innerText)).length`,
+  );
+  show(
+    '確認問題の結果画面',
+    (rawMissed ? `★ 間違えた問題の一覧に、生の $ や \\ が ${rawMissed} 件\n` : '間違えた問題の一覧の生の記号: なし\n') +
+      (await visible()).slice(0, 400),
+  );
 }
 
 // 法令の問題にだけ、本番と同じ前置きが出ているか。
@@ -546,7 +623,7 @@ show('確認問題の設定', (await visible()).slice(0, 500));
 // 「例外なく正しい」と言えなくなる（src/data/categories.ts の LAW_PREAMBLE を読むこと）。
 {
   const report = [];
-  for (const [cat, want] of [['law-what', true], ['gk-state', false]]) {
+  for (const [cat, want] of [['k1-law', true], ['k2-gas', false]]) {
     // **★ 間にホームを挟むこと。**#/practice から #/practice?cat=... へ移っても
     // 同じページなので React が再マウントせず、useState の初期値（?cat=）が読み直されない。
     // 最初にこう書いたら、章を選べていないのに「前置きが出ない」と言われた。

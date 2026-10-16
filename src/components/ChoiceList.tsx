@@ -7,8 +7,11 @@ import { MathInline } from '../lib/math';
  * 本番の解答群には式が並ぶ空欄がある（課目Ⅱ・Ⅲ・Ⅳ。`docs/public-questions.md` §2）。
  * 選択肢を Markdown 全体で描くと `**` や行頭の記号まで解釈されるので、数式だけに絞る。
  * `scripts/check.ts` は選択肢の数式の命令も検査している。
+ *
+ * 演習の結果画面の「間違えた問題」の一覧でも、問題文をこれで描く（`Practice.tsx`）。
+ * 素の文字で出していたため、`$d=0.080\ \mathrm{m}$` が生のまま画面に出ていた（2026 年 10 月 17 日、`drive.mjs` で発見）。
  */
-function ChoiceText({ text }: { text: string }): JSX.Element {
+export function ChoiceText({ text }: { text: string }): JSX.Element {
   const parts = text.split(/\$([^$]+)\$/);
   if (parts.length === 1) return <>{text}</>;
   return <>{parts.map((p, i) => (i % 2 === 1 ? <MathInline key={i} expr={p} /> : p))}</>;

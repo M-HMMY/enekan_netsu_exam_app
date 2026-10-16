@@ -4,6 +4,7 @@ import { QUESTIONS, questionsOfCategory, questionsOfSection } from '../data/ques
 import { CATEGORIES, categoryName } from '../data/categories';
 import { sectionById } from '../data/textbook';
 import { QuestionCard } from '../components/QuestionCard';
+import { ChoiceText } from '../components/ChoiceList';
 import { actions, useStore } from '../store';
 import { navigate, useRoute } from '../lib/router';
 import { choiceIndexOf, keyChoiceCount, keyChoiceNote, useKeys } from '../lib/useKeys';
@@ -226,7 +227,9 @@ export function Practice(): JSX.Element {
               {session.missed.map((q) => (
                 <li key={q.id}>
                   <span className="tag tag-cat">{categoryName(q.categoryId)}</span>
-                  <span className="missed-q">{q.question}</span>
+                  <span className="missed-q">
+                    <ChoiceText text={q.question} />
+                  </span>
                   {q.sectionId && (
                     <button type="button" className="link-btn" onClick={() => navigate(`textbook/${q.sectionId}`)}>
                       教本で復習
